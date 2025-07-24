@@ -1,0 +1,53 @@
+from pydantic import BaseModel, Field
+from typing import List, Optional
+from datetime import datetime
+
+class ConversationChunkBase(BaseModel):
+    order_index: int
+    chunk_text: str
+    author_name: Optional[str] = None
+    author_type: Optional[str] = None
+    timestamp: Optional[datetime] = None
+
+class ConversationChunkCreate(ConversationChunkBase):
+    pass
+
+class ConversationChunk(ConversationChunkBase):
+    id: int
+    conversation_id: int
+    embedding: Optional[List[float]] = None
+
+    class Config:
+        from_attributes = True
+
+class ConversationBase(BaseModel):
+    scenario_title: Optional[str] = None
+    original_title: Optional[str] = None
+    url: Optional[str] = None
+
+class ConversationCreate(ConversationBase):
+    chunks: List[ConversationChunkCreate] = []
+
+class Conversation(ConversationBase):
+    id: int
+    created_at: datetime
+    chunks: List[ConversationChunk] = []
+
+    class Config:
+        from_attributes = True
+
+class ConversationIngest(BaseModel):
+    scenario_title: Optional[str] = None
+    original_title: Optional[str] = None
+    url: Optional[str] = None
+    messages: List[dict] = Field(..., description="List of conversation messages")
+
+class SearchResult(BaseModel):
+    conversation: Conversation
+    relevance_score: float
+    matched_chunks: List[ConversationChunk]
+
+class SearchResponse(BaseModel):
+    results: List[SearchResult]
+    query: str
+    total_results: int
