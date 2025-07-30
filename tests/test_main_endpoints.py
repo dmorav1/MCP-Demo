@@ -3,6 +3,7 @@ from unittest.mock import AsyncMock
 from httpx import AsyncClient
 from app.main import app
 from app.dependencies import get_conversation_crud
+from app import schemas
 
 
 @pytest.mark.asyncio
@@ -51,11 +52,11 @@ async def test_ingest_conversation():
     app.dependency_overrides[get_conversation_crud] = lambda: mock_crud
 
     try:
-        conversation_data = {
-            "scenario_title": "Test Scenario",
-            "original_title": "Test Original Title",
-            "url": "https://example.com/test",
-            "messages": [
+        conversation_payload = schemas.ConversationIngest(
+            scenario_title="Test Scenario",
+            original_title="Test Original Title",
+            url="https://example.com/test",
+            messages=[
                 {
                     "author_name": "User1",
                     "author_type": "human",
@@ -69,10 +70,10 @@ async def test_ingest_conversation():
                     "timestamp": "2023-01-01T12:00:30Z",
                 },
             ],
-        }
+        )
 
         async with AsyncClient(app=app, base_url="http://test") as ac:
-            response = await ac.post("/ingest", json=conversation_data)
+            response = await ac.post("/ingest", json=conversation_payload.model_dump())
 
         assert response.status_code == 201
         data = response.json()
@@ -193,11 +194,11 @@ async def test_get_specific_conversation():
 
     try:
         # First ingest a conversation
-        conversation_data = {
-            "scenario_title": "Specific Test",
-            "original_title": "Specific Test Original",
-            "url": "https://example.com/specific",
-            "messages": [
+        conversation_payload = schemas.ConversationIngest(
+            scenario_title="Specific Test",
+            original_title="Specific Test Original",
+            url="https://example.com/specific",
+            messages=[
                 {
                     "author_name": "User",
                     "author_type": "human",
@@ -205,10 +206,12 @@ async def test_get_specific_conversation():
                     "timestamp": "2023-01-01T12:00:00Z",
                 }
             ],
-        }
+        )
 
         async with AsyncClient(app=app, base_url="http://test") as ac:
-            ingest_response = await ac.post("/ingest", json=conversation_data)
+            ingest_response = await ac.post(
+                "/ingest", json=conversation_payload.model_dump()
+            )
         assert ingest_response.status_code == 201
         conversation_id = ingest_response.json()["id"]
 
@@ -271,11 +274,11 @@ async def test_delete_conversation():
 
     try:
         # First ingest a conversation
-        conversation_data = {
-            "scenario_title": "Delete Test",
-            "original_title": "Delete Test Original",
-            "url": "https://example.com/delete",
-            "messages": [
+        conversation_payload = schemas.ConversationIngest(
+            scenario_title="Delete Test",
+            original_title="Delete Test Original",
+            url="https://example.com/delete",
+            messages=[
                 {
                     "author_name": "User",
                     "author_type": "human",
@@ -283,10 +286,12 @@ async def test_delete_conversation():
                     "timestamp": "2023-01-01T12:00:00Z",
                 }
             ],
-        }
+        )
 
         async with AsyncClient(app=app, base_url="http://test") as ac:
-            ingest_response = await ac.post("/ingest", json=conversation_data)
+            ingest_response = await ac.post(
+                "/ingest", json=conversation_payload.model_dump()
+            )
         assert ingest_response.status_code == 201
         conversation_id = ingest_response.json()["id"]
 

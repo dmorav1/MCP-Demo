@@ -135,18 +135,28 @@ class ConversationCRUD:
         return search_results
 
     async def delete_conversation(self, conversation_id: int) -> bool:
-        logger.info(f"🗑️ Deleting conversation with ID: {conversation_id}")
-        conversation = await self.get_conversation(conversation_id)
-        if conversation:
-            await self.db.execute(
-                delete(models.ConversationChunk).where(
-                    models.ConversationChunk.conversation_id == conversation_id
-                )
-            )
-            await self.db.delete(conversation)
-            await self.db.commit()
-            logger.info(
-                f"✅ Successfully deleted conversation: {conversation.scenario_title}"
-            )
+        """
+        Atomically deletes a conversation. The database's ON DELETE CASCADE
+        handles the deletion of associated chunks.
+
+        Returns:
+            bool: True if a conversation was deleted, False otherwise.
+        """
+        logger.info(f"🗑️ Atomically deleting conversation with ID: {conversation_id}")
+
+        # The foreign key's ON DELETE CASCADE ensures chunks are deleted automatically.
+        # We only need to delete the parent 'conversations' record.
+        stmt = delete(models.Conversation).where(
+            models.Conversation.id == conversation_id
+        )
+
+        result = await self.db.execute(stmt)
+        await self.db.commit()
+
+        # result.rowcount provides the number of deleted rows without a SELECT.
+        if result.rowcount > 0:
+            logger.info(f"✅ Successfully deleted conversation: {conversation_id}")
             return True
-        return False
+        else:
+            logger.warning(f"⚠️ Conversation not found for deletion: {conversation_id}")
+            return False

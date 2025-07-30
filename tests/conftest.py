@@ -1,6 +1,7 @@
 import pytest
 import pytest_asyncio
 import asyncio
+import os
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
@@ -12,8 +13,9 @@ from app.dependencies import get_embedding_service, get_conversation_processor
 from app.services import EmbeddingService, ConversationProcessor
 
 # Test database URL using asyncpg
-TEST_DATABASE_URL = (
-    "postgresql+asyncpg://test_user:test_password@localhost:5432/test_mcp_db"
+TEST_DATABASE_URL = os.getenv(
+    "TEST_DATABASE_URL",
+    "postgresql+asyncpg://test_user:test_password@localhost:5432/test_mcp_db",
 )
 
 # Create async engine for testing

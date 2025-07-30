@@ -233,39 +233,35 @@ async def test_delete_conversation_success(crud_instance, mock_db_session):
     """Test successfully deleting a conversation."""
     conversation_id = 1
 
-    # Mock existing conversation
-    mock_conversation = MagicMock()
-    mock_conversation.id = conversation_id
-    mock_conversation.scenario_title = "Test Conversation"
-
-    # Mock get_conversation to return existing conversation
-    crud_instance.get_conversation = AsyncMock(return_value=mock_conversation)
+    # Mock the database execute result with rowcount
+    mock_result = MagicMock()
+    mock_result.rowcount = 1  # Simulate one row deleted
+    mock_db_session.execute.return_value = mock_result
 
     result = await crud_instance.delete_conversation(conversation_id)
 
-    # Verify the conversation was fetched
-    crud_instance.get_conversation.assert_called_once_with(conversation_id)
-
-    # Verify database operations
-    assert mock_db_session.execute.call_count == 1  # Delete chunks
-    assert mock_db_session.delete.call_count == 1  # Delete conversation
+    # Verify database operations - should use the new atomic approach
+    assert mock_db_session.execute.call_count == 1  # Only one DELETE statement
     assert mock_db_session.commit.call_count == 1
 
     assert result is True
 
 
 @pytest.mark.asyncio
-async def test_delete_conversation_not_found(crud_instance):
+async def test_delete_conversation_not_found(crud_instance, mock_db_session):
     """Test deleting a non-existent conversation."""
     conversation_id = 999
 
-    # Mock get_conversation to return None
-    crud_instance.get_conversation = AsyncMock(return_value=None)
+    # Mock the database execute result with rowcount = 0 (no rows deleted)
+    mock_result = MagicMock()
+    mock_result.rowcount = 0  # Simulate no rows deleted
+    mock_db_session.execute.return_value = mock_result
 
     result = await crud_instance.delete_conversation(conversation_id)
 
-    # Verify the conversation was fetched
-    crud_instance.get_conversation.assert_called_once_with(conversation_id)
+    # Verify database operations - should use the new atomic approach
+    assert mock_db_session.execute.call_count == 1  # Only one DELETE statement
+    assert mock_db_session.commit.call_count == 1
 
     assert result is False
 
