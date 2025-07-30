@@ -54,17 +54,23 @@ sudo usermod -a -G docker $USER
 
 ### Python Dependencies
 
-The project uses **psycopg 3** (not psycopg2) for PostgreSQL connectivity with Python 3.13 compatibility:
+The project uses **asyncpg** for async PostgreSQL connectivity and **psycopg 3** for legacy compatibility:
 
 ```bash
 # Core dependencies (automatically installed via requirements.txt)
 fastapi==0.104.1          # Web framework
 uvicorn==0.24.0           # ASGI server
 sqlalchemy==2.0.23        # ORM
-psycopg[binary]==3.1.20   # PostgreSQL adapter (Python 3.13 compatible)
-pgvector==0.2.4           # Vector similarity search
+asyncpg==0.30.0           # Async PostgreSQL adapter (primary)
+psycopg[binary]==3.1.20   # PostgreSQL adapter (compatibility)
+pgvector==0.4.1           # Vector similarity search (updated)
 pydantic==2.5.0           # Data validation
+pydantic-settings==2.1.0  # Settings management
 openai==1.3.7             # OpenAI API client
+alembic==1.13.1           # Database migrations
+pytest==7.4.3             # Testing framework
+pytest-asyncio==0.21.1    # Async testing support
+httpx==0.25.2             # Async HTTP client for testing
 ```
 
 ### Database Requirements
@@ -79,8 +85,8 @@ openai==1.3.7             # OpenAI API client
    - Generate an API key from the dashboard
    - Add to `.env` file as `OPENAI_API_KEY`
 
-2. **Database Configuration**: 
-   - Uses `postgresql+psycopg://` connection string format
+2. **Database Configuration**:
+   - Uses `postgresql+asyncpg://` connection string format for async operations
    - Configured automatically via Docker Compose
 
 ### Quick Dependency Check
