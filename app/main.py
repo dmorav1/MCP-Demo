@@ -2,12 +2,22 @@ from fastapi import FastAPI, Depends, HTTPException, status, Query
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from typing import List
+import logging
+import os
 from app import models, schemas, crud
 from app.database import engine, get_db
 from app.services import ContextFormatter
+from app.logging_config import setup_logging, get_logger
+
+# Set up comprehensive logging
+log_level = os.getenv("LOG_LEVEL", "INFO")
+setup_logging(log_level)
+logger = get_logger(__name__)
 
 # Create database tables
+logger.info("🚀 Creating database tables...")
 models.Base.metadata.create_all(bind=engine)
+logger.info("✅ Database tables created successfully")
 
 app = FastAPI(
     title="MCP Backend API",
@@ -24,11 +34,30 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+logger.info("✅ FastAPI application initialized")
+
+@app.on_event("startup")
+async def startup_event():
+    """Application startup event"""
+    logger.info("🌟 Application startup completed")
+    logger.info("🔗 API endpoints registered:")
+    for route in app.routes:
+        if hasattr(route, 'methods') and hasattr(route, 'path'):
+            methods = ', '.join(route.methods)
+            logger.info(f"   {methods} {route.path}")
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Application shutdown event"""
+    logger.info("🛑 Application shutdown initiated")
+    logger.info("👋 MCP Backend API stopped")
+
 @app.get("/")
 async def root():
     """
     Root endpoint
     """
+    logger.info("📍 Root endpoint accessed")
     return {
         "message": "MCP Backend API",
         "version": "1.0.0",
@@ -51,11 +80,14 @@ async def ingest_conversation(
     This endpoint processes the conversation data, chunks it into smaller pieces,
     generates embeddings for each chunk, and stores everything in the database.
     """
+    logger.info(f"📥 Ingesting conversation: {conversation_data.scenario_title}")
     try:
         conversation_crud = crud.ConversationCRUD(db)
         db_conversation = await conversation_crud.create_conversation(conversation_data)
+        logger.info(f"✅ Successfully ingested conversation ID: {db_conversation.id}")
         return db_conversation
     except Exception as e:
+        logger.error(f"❌ Error ingesting conversation: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error ingesting conversation: {str(e)}"
@@ -73,14 +105,16 @@ async def search_conversations(
     The search query is converted to a vector embedding and compared against
     stored conversation chunks using cosine similarity.
     """
+    logger.info(f"🔍 Searching conversations with query: '{q}' (top_k={top_k})")
     try:
         conversation_crud = crud.ConversationCRUD(db)
         search_results = await conversation_crud.search_conversations(q, top_k)
+        logger.info(f"🎯 Found {len(search_results)} search results")
         
         # Format results using ContextFormatter
         formatted_results = ContextFormatter.format_search_results(search_results, q)
         
-        return schemas.SearchResponse(
+        response = schemas.SearchResponse(
             results=[
                 schemas.SearchResult(
                     conversation=schemas.Conversation(
@@ -108,7 +142,10 @@ async def search_conversations(
             query=q,
             total_results=len(search_results)
         )
+        logger.info(f"✅ Search completed successfully for query: '{q}'")
+        return response
     except Exception as e:
+        logger.error(f"❌ Error searching conversations: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error searching conversations: {str(e)}"
@@ -123,11 +160,14 @@ async def get_conversations(
     """
     Get all conversations with pagination.
     """
+    logger.info(f"📋 Fetching conversations (skip={skip}, limit={limit})")
     try:
         conversation_crud = crud.ConversationCRUD(db)
         conversations = conversation_crud.get_conversations(skip=skip, limit=limit)
+        logger.info(f"✅ Retrieved {len(conversations)} conversations")
         return conversations
     except Exception as e:
+        logger.error(f"❌ Error retrieving conversations: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error retrieving conversations: {str(e)}"
@@ -141,18 +181,22 @@ async def get_conversation(
     """
     Get a specific conversation by ID.
     """
+    logger.info(f"🔍 Fetching conversation with ID: {conversation_id}")
     try:
         conversation_crud = crud.ConversationCRUD(db)
         conversation = conversation_crud.get_conversation(conversation_id)
         if conversation is None:
+            logger.warning(f"⚠️ Conversation not found: {conversation_id}")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Conversation not found"
             )
+        logger.info(f"✅ Retrieved conversation: {conversation.scenario_title}")
         return conversation
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"❌ Error retrieving conversation: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error retrieving conversation: {str(e)}"
@@ -166,18 +210,22 @@ async def delete_conversation(
     """
     Delete a conversation and all its chunks.
     """
+    logger.info(f"🗑️ Deleting conversation with ID: {conversation_id}")
     try:
         conversation_crud = crud.ConversationCRUD(db)
         success = conversation_crud.delete_conversation(conversation_id)
         if not success:
+            logger.warning(f"⚠️ Conversation not found for deletion: {conversation_id}")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Conversation not found"
             )
+        logger.info(f"✅ Successfully deleted conversation: {conversation_id}")
         return {"message": "Conversation deleted successfully"}
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"❌ Error deleting conversation: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error deleting conversation: {str(e)}"
@@ -188,8 +236,10 @@ async def health_check():
     """
     Health check endpoint
     """
+    logger.info("💚 Health check endpoint accessed")
     return {"status": "healthy", "service": "mcp-backend"}
 
 if __name__ == "__main__":
     import uvicorn
+    logger.info("🚀 Starting application server...")
     uvicorn.run(app, host="0.0.0.0", port=8000)

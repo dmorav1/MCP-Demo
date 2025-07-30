@@ -1,6 +1,12 @@
 from pydantic import BaseModel, Field
 from typing import List, Optional
 from datetime import datetime
+import logging
+from app.logging_config import get_logger
+
+# Get logger for this module
+logger = get_logger(__name__)
+logger.info("📦 Loading Pydantic schemas...")
 
 class ConversationChunkBase(BaseModel):
     order_index: int
@@ -51,3 +57,5 @@ class SearchResponse(BaseModel):
     results: List[SearchResult]
     query: str
     total_results: int
+
+logger.info("✅ Pydantic schemas loaded successfully")

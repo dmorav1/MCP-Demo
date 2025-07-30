@@ -2,7 +2,13 @@ from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Inde
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from pgvector.sqlalchemy import Vector
+import logging
 from app.database import Base
+from app.logging_config import get_logger
+
+# Get logger for this module
+logger = get_logger(__name__)
+logger.info("📋 Loading database models...")
 
 class Conversation(Base):
     __tablename__ = "conversations"
@@ -35,3 +41,5 @@ class ConversationChunk(Base):
         Index('ix_conversation_chunks_embedding', 'embedding', postgresql_using='ivfflat', postgresql_ops={'embedding': 'vector_l2_ops'}, postgresql_with={'lists': 100}),
         Index('ix_conversation_chunks_conversation_order', 'conversation_id', 'order_index', unique=True),
     )
+
+logger.info("✅ Database models loaded successfully")
