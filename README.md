@@ -11,7 +11,125 @@ A Model Context Protocol (MCP) backend service for storing and retrieving conver
 - Conversation chunking and embedding generation
 - Comprehensive test suite
 
+## Dependencies & Prerequisites
+
+### System Requirements
+
+- **Python 3.11+** (recommended) or Python 3.10+
+- **Docker & Docker Compose** (for PostgreSQL container)
+- **OpenAI API key** (for embeddings generation)
+
+### Required System Dependencies
+
+#### macOS
+```bash
+# Install Homebrew if not already installed
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+
+# Install Python 3.11
+brew install python@3.11
+
+# Install Docker Desktop
+brew install --cask docker
+```
+
+#### Ubuntu/Debian
+```bash
+# Update package list
+sudo apt update
+
+# Install Python 3.11
+sudo apt install python3.11 python3.11-venv python3.11-dev
+
+# Install Docker
+sudo apt install docker.io docker-compose
+
+# Add user to docker group
+sudo usermod -a -G docker $USER
+```
+
+#### Windows
+- Install Python 3.11 from [python.org](https://www.python.org/downloads/)
+- Install Docker Desktop from [docker.com](https://www.docker.com/products/docker-desktop/)
+
+### Python Dependencies
+
+The project uses **psycopg 3** (not psycopg2) for PostgreSQL connectivity with Python 3.13 compatibility:
+
+```bash
+# Core dependencies (automatically installed via requirements.txt)
+fastapi==0.104.1          # Web framework
+uvicorn==0.24.0           # ASGI server
+sqlalchemy==2.0.23        # ORM
+psycopg[binary]==3.1.20   # PostgreSQL adapter (Python 3.13 compatible)
+pgvector==0.2.4           # Vector similarity search
+pydantic==2.5.0           # Data validation
+openai==1.3.7             # OpenAI API client
+```
+
+### Database Requirements
+
+- **PostgreSQL 12+** with **pgvector extension**
+- The project uses Docker to provide this automatically
+
+### Environment Setup
+
+1. **OpenAI API Key**: Required for embeddings generation
+   - Sign up at [OpenAI](https://platform.openai.com/)
+   - Generate an API key from the dashboard
+   - Add to `.env` file as `OPENAI_API_KEY`
+
+2. **Database Configuration**: 
+   - Uses `postgresql+psycopg://` connection string format
+   - Configured automatically via Docker Compose
+
+### Quick Dependency Check
+
+Before running `start-dev.sh`, verify you have:
+
+```bash
+# Check Python version (should be 3.10+)
+python3 --version
+
+# Check if Docker is running
+docker --version
+docker-compose --version
+
+# Check if OpenAI API key is set (after creating .env)
+grep OPENAI_API_KEY .env
+```
+
 ## Quick Start
+
+### Using the Development Script (Recommended)
+
+The easiest way to get started is using the provided `start-dev.sh` script:
+
+```bash
+# Navigate to the project directory
+cd mcp-backend
+
+# Make the script executable (if needed)
+chmod +x start-dev.sh
+
+# Run the development setup script
+./start-dev.sh
+```
+
+**What the script does:**
+1. Creates a Python 3.11 virtual environment (if not exists)
+2. Activates the virtual environment
+3. Installs all Python dependencies from `requirements.txt`
+4. Starts PostgreSQL container with Docker Compose
+5. Waits for database to be ready
+6. Starts the FastAPI development server
+
+**Prerequisites for start-dev.sh:**
+- Python 3.11+ installed on your system
+- Docker and Docker Compose running
+- `.env` file with valid OpenAI API key
+
+### Manual Setup
 
 ### Prerequisites
 
@@ -194,6 +312,57 @@ Environment variables (set in `.env` file):
 4. Add tests for new functionality
 5. Run the test suite
 6. Submit a pull request
+
+## Troubleshooting
+
+### Common Issues
+
+#### psycopg2 / psycopg Compatibility Error
+
+If you encounter errors like `ModuleNotFoundError: No module named 'psycopg2'`, this is a common issue with newer Python versions (3.13+):
+
+**Problem:** The project uses psycopg 3 but SQLAlchemy is trying to use the old psycopg2 driver.
+
+**Solution:** Ensure your database URL uses the correct format:
+```bash
+# Correct format for psycopg 3
+DATABASE_URL=postgresql+psycopg://user:password@localhost:5432/database
+
+# Incorrect format (will try to use psycopg2)
+DATABASE_URL=postgresql://user:password@localhost:5432/database
+```
+
+**Why this happens:** 
+- psycopg2-binary doesn't support Python 3.13+
+- We use psycopg 3 (the modern PostgreSQL adapter) instead
+- SQLAlchemy needs the `+psycopg` dialect specification to use the correct driver
+
+#### Virtual Environment Python Version
+
+The `start-dev.sh` script creates a virtual environment with Python 3.11 by default. If you need a different version:
+
+```bash
+# Edit start-dev.sh and change this line:
+python3.11 -m venv venv
+
+# To your preferred version, e.g.:
+python3.10 -m venv venv
+```
+
+#### Docker Permission Issues (Linux)
+
+If you get permission errors with Docker:
+```bash
+sudo usermod -a -G docker $USER
+# Then log out and log back in
+```
+
+#### OpenAI API Key Issues
+
+Make sure your `.env` file has a valid OpenAI API key:
+```bash
+OPENAI_API_KEY=sk-your-actual-api-key-here
+```
 
 ## License
 
