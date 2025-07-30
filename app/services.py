@@ -11,21 +11,11 @@ logger = get_logger(__name__)
 
 
 class EmbeddingService:
-    def __init__(self):
-        # Use the settings to get the API key
-        api_key = settings.openai_api_key
-        logger.info(f"🔧 Initializing EmbeddingService with model: {settings.embedding_model}")
-        logger.info(f"📏 Embedding dimension: {settings.embedding_dimension}")
-        
-        if api_key:
-            self.client = AsyncOpenAI(api_key=api_key)
-            logger.info("✅ Using API key from settings")
-        else:
-            self.client = AsyncOpenAI()  # Will use OPENAI_API_KEY env var automatically
-            logger.info("🔑 Using API key from environment variable")
-            
-        self.model = settings.embedding_model
-        self.dimension = settings.embedding_dimension
+    def __init__(self, api_key: str, model: str, dimension: int):
+        logger.info(f"🔧 Initializing EmbeddingService with model: {model}")
+        self.client = AsyncOpenAI(api_key=api_key)
+        self.model = model
+        self.dimension = dimension
 
     async def generate_embedding(self, text: str) -> List[float]:
         """Generate embedding for a given text using OpenAI API"""
@@ -63,8 +53,8 @@ class EmbeddingService:
             return fallback_vectors
 
 class ConversationProcessor:
-    def __init__(self):
-        self.embedding_service = EmbeddingService()
+    def __init__(self, embedding_service: EmbeddingService):
+        self.embedding_service = embedding_service
         logger.info("🎯 ConversationProcessor initialized")
 
     def chunk_conversation(self, messages: List[Dict[str, Any]], max_chunk_size: int = 1000) -> List[Dict[str, Any]]:

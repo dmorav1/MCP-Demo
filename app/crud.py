@@ -9,10 +9,11 @@ import numpy as np
 logger = get_logger(__name__)
 
 class ConversationCRUD:
-    def __init__(self, db: AsyncSession):
+    def __init__(self, db: AsyncSession, processor: ConversationProcessor):
         self.db = db
-        self.processor = ConversationProcessor()
-        logger.info("🗄️ ConversationCRUD initialized for async")
+        self.processor = processor
+        self.embedding_service = processor.embedding_service # Get from processor
+        logger.info("🗄️ ConversationCRUD initialized with injected processor")
 
     async def create_conversation(self, conversation_data: schemas.ConversationIngest) -> models.Conversation:
         # This will be fully refactored in Phase 3 for atomicity
@@ -59,9 +60,8 @@ class ConversationCRUD:
     async def search_conversations(self, query: str, top_k: int = 5) -> List[Dict[str, Any]]:
         # This will be fully refactored in Phase 3 for safety and performance
         logger.info(f"🔍 Searching conversations for query: '{query}' (top_k={top_k})")
-        from app.services import EmbeddingService
-        embedding_service = EmbeddingService()
-        query_embedding = await embedding_service.generate_embedding(query)
+        # REMOVE manual instantiation of EmbeddingService
+        query_embedding = await self.embedding_service.generate_embedding(query)
         
         # Using l2_distance is preferred, but we'll stick to the raw query for now and fix in Phase 3
         sql_query = text("""

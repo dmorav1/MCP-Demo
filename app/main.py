@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 import logging
 import os
-from app import models, schemas, crud
+from app import models, schemas, crud, dependencies
 from app.database import engine, get_db
 from app.services import ContextFormatter
 from app.logging_config import setup_logging, get_logger
@@ -70,7 +70,7 @@ async def root():
 @app.post("/ingest", response_model=schemas.Conversation, status_code=status.HTTP_201_CREATED)
 async def ingest_conversation(
     conversation_data: schemas.ConversationIngest,
-    db: AsyncSession = Depends(get_db)
+    conversation_crud: crud.ConversationCRUD = Depends(dependencies.get_conversation_crud)
 ):
     """
     Ingest a new conversation into the database.
@@ -80,7 +80,6 @@ async def ingest_conversation(
     """
     logger.info(f"📥 Ingesting conversation: {conversation_data.scenario_title}")
     try:
-        conversation_crud = crud.ConversationCRUD(db)
         db_conversation = await conversation_crud.create_conversation(conversation_data)
         logger.info(f"✅ Successfully ingested conversation ID: {db_conversation.id}")
         return db_conversation
@@ -95,7 +94,7 @@ async def ingest_conversation(
 async def search_conversations(
     q: str = Query(..., description="Search query string"),
     top_k: int = Query(5, ge=1, le=50, description="Number of results to return"),
-    db: AsyncSession = Depends(get_db)
+    conversation_crud: crud.ConversationCRUD = Depends(dependencies.get_conversation_crud)
 ):
     """
     Search for relevant conversations using semantic similarity.
@@ -105,7 +104,6 @@ async def search_conversations(
     """
     logger.info(f"🔍 Searching conversations with query: '{q}' (top_k={top_k})")
     try:
-        conversation_crud = crud.ConversationCRUD(db)
         search_results = await conversation_crud.search_conversations(q, top_k)
         logger.info(f"🎯 Found {len(search_results)} search results")
         
@@ -153,14 +151,13 @@ async def search_conversations(
 async def get_conversations(
     skip: int = Query(0, ge=0, description="Number of conversations to skip"),
     limit: int = Query(100, ge=1, le=1000, description="Maximum number of conversations to return"),
-    db: AsyncSession = Depends(get_db)
+    conversation_crud: crud.ConversationCRUD = Depends(dependencies.get_conversation_crud)
 ):
     """
     Get all conversations with pagination.
     """
     logger.info(f"📋 Fetching conversations (skip={skip}, limit={limit})")
     try:
-        conversation_crud = crud.ConversationCRUD(db)
         conversations = await conversation_crud.get_conversations(skip=skip, limit=limit)
         logger.info(f"✅ Retrieved {len(conversations)} conversations")
         return conversations
@@ -174,14 +171,13 @@ async def get_conversations(
 @app.get("/conversations/{conversation_id}", response_model=schemas.Conversation)
 async def get_conversation(
     conversation_id: int,
-    db: AsyncSession = Depends(get_db)
+    conversation_crud: crud.ConversationCRUD = Depends(dependencies.get_conversation_crud)
 ):
     """
     Get a specific conversation by ID.
     """
     logger.info(f"🔍 Fetching conversation with ID: {conversation_id}")
     try:
-        conversation_crud = crud.ConversationCRUD(db)
         conversation = await conversation_crud.get_conversation(conversation_id)
         if conversation is None:
             logger.warning(f"⚠️ Conversation not found: {conversation_id}")
@@ -203,14 +199,13 @@ async def get_conversation(
 @app.delete("/conversations/{conversation_id}")
 async def delete_conversation(
     conversation_id: int,
-    db: AsyncSession = Depends(get_db)
+    conversation_crud: crud.ConversationCRUD = Depends(dependencies.get_conversation_crud)
 ):
     """
     Delete a conversation and all its chunks.
     """
     logger.info(f"🗑️ Deleting conversation with ID: {conversation_id}")
     try:
-        conversation_crud = crud.ConversationCRUD(db)
         success = await conversation_crud.delete_conversation(conversation_id)
         if not success:
             logger.warning(f"⚠️ Conversation not found for deletion: {conversation_id}")

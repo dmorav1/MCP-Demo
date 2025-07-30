@@ -71,6 +71,7 @@ alembic==1.13.1           # Database migrations
 pytest==7.4.3             # Testing framework
 pytest-asyncio==0.21.1    # Async testing support
 httpx==0.25.2             # Async HTTP client for testing
+greenlet==3.2.3           # Required for SQLAlchemy async operations
 ```
 
 ### Database Requirements
