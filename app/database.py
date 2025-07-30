@@ -14,7 +14,7 @@ logger = get_logger(__name__)
 logger.info("📄 Environment variables loaded")
 
 class Settings(BaseSettings):
-    database_url: str = os.getenv("DATABASE_URL", "postgresql://username:password@localhost:5432/mcp_db")
+    database_url: str = os.getenv("DATABASE_URL", "postgresql+psycopg://username:password@localhost:5432/mcp_db")
     openai_api_key: str = os.getenv("OPENAI_API_KEY", "")
     embedding_model: str = os.getenv("EMBEDDING_MODEL", "text-embedding-ada-002")
     embedding_dimension: int = int(os.getenv("EMBEDDING_DIMENSION", "1536"))
