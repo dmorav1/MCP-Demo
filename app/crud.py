@@ -1,48 +1,33 @@
-from sqlalchemy.orm import Session
-from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, text, delete
 from typing import List, Dict, Any, Optional
-import logging
 from app import models, schemas
 from app.services import ConversationProcessor
 from app.logging_config import get_logger
-import json
+import numpy as np
 
-# Get logger for this module
 logger = get_logger(__name__)
 
 class ConversationCRUD:
-    def __init__(self, db: Session):
+    def __init__(self, db: AsyncSession):
         self.db = db
         self.processor = ConversationProcessor()
-        logger.info("🗄️ ConversationCRUD initialized")
+        logger.info("🗄️ ConversationCRUD initialized for async")
 
     async def create_conversation(self, conversation_data: schemas.ConversationIngest) -> models.Conversation:
-        """
-        Create a new conversation with chunks and embeddings
-        """
+        # This will be fully refactored in Phase 3 for atomicity
         logger.info(f"💾 Creating new conversation: {conversation_data.scenario_title}")
-        
-        # Process the conversation data
-        processed_data = await self.processor.process_conversation_for_ingestion(
-            conversation_data.dict()
-        )
-        
-        # Create conversation record
+        processed_data = await self.processor.process_conversation_for_ingestion(conversation_data.model_dump())
         db_conversation = models.Conversation(
             scenario_title=processed_data.get('scenario_title'),
             original_title=processed_data.get('original_title'),
             url=processed_data.get('url')
         )
         self.db.add(db_conversation)
-        self.db.commit()
-        self.db.refresh(db_conversation)
-        logger.info(f"✅ Created conversation with ID: {db_conversation.id}")
+        await self.db.commit()
+        await self.db.refresh(db_conversation)
         
-        # Create conversation chunks
-        chunks_count = len(processed_data.get('chunks', []))
-        logger.info(f"📝 Creating {chunks_count} conversation chunks")
-        
-        for i, chunk_data in enumerate(processed_data.get('chunks', [])):
+        for chunk_data in processed_data.get('chunks', []):
             db_chunk = models.ConversationChunk(
                 conversation_id=db_conversation.id,
                 order_index=chunk_data['order_index'],
@@ -53,56 +38,32 @@ class ConversationCRUD:
                 timestamp=chunk_data.get('timestamp')
             )
             self.db.add(db_chunk)
-            logger.debug(f"📄 Added chunk {i+1}/{chunks_count}")
-        
-        self.db.commit()
-        self.db.refresh(db_conversation)
-        logger.info(f"✅ Successfully created conversation with {chunks_count} chunks")
+        await self.db.commit()
+        await self.db.refresh(db_conversation)
         return db_conversation
 
-    def get_conversation(self, conversation_id: int) -> Optional[models.Conversation]:
-        """
-        Get a conversation by ID
-        """
+    async def get_conversation(self, conversation_id: int) -> Optional[models.Conversation]:
         logger.info(f"🔍 Fetching conversation with ID: {conversation_id}")
-        conversation = self.db.query(models.Conversation).filter(
-            models.Conversation.id == conversation_id
-        ).first()
-        
-        if conversation:
-            logger.info(f"✅ Found conversation: {conversation.scenario_title}")
-        else:
-            logger.warning(f"⚠️ Conversation not found with ID: {conversation_id}")
-        
-        return conversation
+        result = await self.db.execute(
+            select(models.Conversation).filter(models.Conversation.id == conversation_id)
+        )
+        return result.scalars().first()
 
-    def get_conversations(self, skip: int = 0, limit: int = 100) -> List[models.Conversation]:
-        """
-        Get all conversations with pagination
-        """
+    async def get_conversations(self, skip: int = 0, limit: int = 100) -> List[models.Conversation]:
         logger.info(f"📋 Fetching conversations (skip={skip}, limit={limit})")
-        conversations = self.db.query(models.Conversation).offset(skip).limit(limit).all()
-        logger.info(f"✅ Retrieved {len(conversations)} conversations")
-        return conversations
+        result = await self.db.execute(
+            select(models.Conversation).offset(skip).limit(limit)
+        )
+        return result.scalars().all()
 
     async def search_conversations(self, query: str, top_k: int = 5) -> List[Dict[str, Any]]:
-        """
-        Search for conversations using vector similarity
-        """
+        # This will be fully refactored in Phase 3 for safety and performance
         logger.info(f"🔍 Searching conversations for query: '{query}' (top_k={top_k})")
-        
-        # Generate embedding for the search query
         from app.services import EmbeddingService
         embedding_service = EmbeddingService()
-        logger.debug("🔄 Generating embedding for search query")
         query_embedding = await embedding_service.generate_embedding(query)
         
-        # Convert embedding to PostgreSQL array format
-        embedding_str = '[' + ','.join(map(str, query_embedding)) + ']'
-        logger.debug(f"📊 Query embedding generated with dimension: {len(query_embedding)}")
-        
-        # Perform vector similarity search
-        logger.info("🗃️ Executing vector similarity search in database")
+        # Using l2_distance is preferred, but we'll stick to the raw query for now and fix in Phase 3
         sql_query = text("""
             SELECT 
                 c.id as conversation_id,
@@ -124,12 +85,11 @@ class ConversationCRUD:
             LIMIT :limit
         """)
         
-        result = self.db.execute(sql_query, {
-            'query_embedding': embedding_str,
+        result = await self.db.execute(sql_query, {
+            'query_embedding': str(list(query_embedding)), # Pass as string representation of list
             'limit': top_k
         })
         
-        # Process results
         search_results = []
         for row in result:
             search_results.append({
@@ -144,30 +104,21 @@ class ConversationCRUD:
                 'author_name': row.author_name,
                 'author_type': row.author_type,
                 'timestamp': row.timestamp,
-                'relevance_score': 1.0 - row.distance  # Convert distance to relevance score
+                'relevance_score': 1.0 - row.distance
             })
         
         logger.info(f"✅ Search completed: found {len(search_results)} results")
         return search_results
 
-    def delete_conversation(self, conversation_id: int) -> bool:
-        """
-        Delete a conversation and all its chunks
-        """
+    async def delete_conversation(self, conversation_id: int) -> bool:
         logger.info(f"🗑️ Deleting conversation with ID: {conversation_id}")
-        conversation = self.get_conversation(conversation_id)
+        conversation = await self.get_conversation(conversation_id)
         if conversation:
-            # Delete chunks first (due to foreign key constraint)
-            chunks_deleted = self.db.query(models.ConversationChunk).filter(
-                models.ConversationChunk.conversation_id == conversation_id
-            ).delete()
-            logger.info(f"🧹 Deleted {chunks_deleted} conversation chunks")
-            
-            # Delete conversation
-            self.db.delete(conversation)
-            self.db.commit()
+            await self.db.execute(
+                delete(models.ConversationChunk).where(models.ConversationChunk.conversation_id == conversation_id)
+            )
+            await self.db.delete(conversation)
+            await self.db.commit()
             logger.info(f"✅ Successfully deleted conversation: {conversation.scenario_title}")
             return True
-        
-        logger.warning(f"⚠️ Conversation not found for deletion: {conversation_id}")
         return False

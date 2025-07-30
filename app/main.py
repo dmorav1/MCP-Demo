@@ -1,6 +1,6 @@
 from fastapi import FastAPI, Depends, HTTPException, status, Query
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 import logging
 import os
@@ -14,10 +14,8 @@ log_level = os.getenv("LOG_LEVEL", "INFO")
 setup_logging(log_level)
 logger = get_logger(__name__)
 
-# Create database tables
-logger.info("🚀 Creating database tables...")
-models.Base.metadata.create_all(bind=engine)
-logger.info("✅ Database tables created successfully")
+# Note: Database schema creation is now handled by Alembic migrations
+# See Phase 4 of the refactoring plan for migration setup
 
 app = FastAPI(
     title="MCP Backend API",
@@ -72,7 +70,7 @@ async def root():
 @app.post("/ingest", response_model=schemas.Conversation, status_code=status.HTTP_201_CREATED)
 async def ingest_conversation(
     conversation_data: schemas.ConversationIngest,
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Ingest a new conversation into the database.
@@ -97,7 +95,7 @@ async def ingest_conversation(
 async def search_conversations(
     q: str = Query(..., description="Search query string"),
     top_k: int = Query(5, ge=1, le=50, description="Number of results to return"),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Search for relevant conversations using semantic similarity.
@@ -155,7 +153,7 @@ async def search_conversations(
 async def get_conversations(
     skip: int = Query(0, ge=0, description="Number of conversations to skip"),
     limit: int = Query(100, ge=1, le=1000, description="Maximum number of conversations to return"),
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Get all conversations with pagination.
@@ -163,7 +161,7 @@ async def get_conversations(
     logger.info(f"📋 Fetching conversations (skip={skip}, limit={limit})")
     try:
         conversation_crud = crud.ConversationCRUD(db)
-        conversations = conversation_crud.get_conversations(skip=skip, limit=limit)
+        conversations = await conversation_crud.get_conversations(skip=skip, limit=limit)
         logger.info(f"✅ Retrieved {len(conversations)} conversations")
         return conversations
     except Exception as e:
@@ -176,7 +174,7 @@ async def get_conversations(
 @app.get("/conversations/{conversation_id}", response_model=schemas.Conversation)
 async def get_conversation(
     conversation_id: int,
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Get a specific conversation by ID.
@@ -184,7 +182,7 @@ async def get_conversation(
     logger.info(f"🔍 Fetching conversation with ID: {conversation_id}")
     try:
         conversation_crud = crud.ConversationCRUD(db)
-        conversation = conversation_crud.get_conversation(conversation_id)
+        conversation = await conversation_crud.get_conversation(conversation_id)
         if conversation is None:
             logger.warning(f"⚠️ Conversation not found: {conversation_id}")
             raise HTTPException(
@@ -205,7 +203,7 @@ async def get_conversation(
 @app.delete("/conversations/{conversation_id}")
 async def delete_conversation(
     conversation_id: int,
-    db: Session = Depends(get_db)
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Delete a conversation and all its chunks.
@@ -213,7 +211,7 @@ async def delete_conversation(
     logger.info(f"🗑️ Deleting conversation with ID: {conversation_id}")
     try:
         conversation_crud = crud.ConversationCRUD(db)
-        success = conversation_crud.delete_conversation(conversation_id)
+        success = await conversation_crud.delete_conversation(conversation_id)
         if not success:
             logger.warning(f"⚠️ Conversation not found for deletion: {conversation_id}")
             raise HTTPException(
