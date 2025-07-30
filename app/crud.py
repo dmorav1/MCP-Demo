@@ -16,20 +16,21 @@ class ConversationCRUD:
         logger.info("🗄️ ConversationCRUD initialized with injected processor")
 
     async def create_conversation(self, conversation_data: schemas.ConversationIngest) -> models.Conversation:
-        # This will be fully refactored in Phase 3 for atomicity
-        logger.info(f"💾 Creating new conversation: {conversation_data.scenario_title}")
+        logger.info(f"💾 Atomically creating new conversation: {conversation_data.scenario_title}")
         processed_data = await self.processor.process_conversation_for_ingestion(conversation_data.model_dump())
+        
         db_conversation = models.Conversation(
             scenario_title=processed_data.get('scenario_title'),
             original_title=processed_data.get('original_title'),
             url=processed_data.get('url')
         )
         self.db.add(db_conversation)
-        await self.db.commit()
-        await self.db.refresh(db_conversation)
         
-        for chunk_data in processed_data.get('chunks', []):
-            db_chunk = models.ConversationChunk(
+        # Flush to get the conversation ID before creating chunks
+        await self.db.flush()
+        
+        db_chunks = [
+            models.ConversationChunk(
                 conversation_id=db_conversation.id,
                 order_index=chunk_data['order_index'],
                 chunk_text=chunk_data['chunk_text'],
@@ -37,10 +38,14 @@ class ConversationCRUD:
                 author_name=chunk_data.get('author_name'),
                 author_type=chunk_data.get('author_type'),
                 timestamp=chunk_data.get('timestamp')
-            )
-            self.db.add(db_chunk)
-        await self.db.commit()
-        await self.db.refresh(db_conversation)
+            ) for chunk_data in processed_data.get('chunks', [])
+        ]
+        
+        self.db.add_all(db_chunks)
+        await self.db.commit() # A single, atomic commit for conversation and all its chunks
+        await self.db.refresh(db_conversation) # Refresh to load the .chunks relationship
+        
+        logger.info(f"✅ Successfully created conversation with {len(db_chunks)} chunks in one transaction.")
         return db_conversation
 
     async def get_conversation(self, conversation_id: int) -> Optional[models.Conversation]:
@@ -58,41 +63,35 @@ class ConversationCRUD:
         return result.scalars().all()
 
     async def search_conversations(self, query: str, top_k: int = 5) -> List[Dict[str, Any]]:
-        # This will be fully refactored in Phase 3 for safety and performance
-        logger.info(f"🔍 Searching conversations for query: '{query}' (top_k={top_k})")
-        # REMOVE manual instantiation of EmbeddingService
+        logger.info(f"🔍 Performing ORM-based vector search for query: '{query}' (top_k={top_k})")
         query_embedding = await self.embedding_service.generate_embedding(query)
         
-        # Using l2_distance is preferred, but we'll stick to the raw query for now and fix in Phase 3
-        sql_query = text("""
-            SELECT 
-                c.id as conversation_id,
-                c.scenario_title,
-                c.original_title,
-                c.url,
-                c.created_at,
-                cc.id as chunk_id,
-                cc.order_index,
-                cc.chunk_text,
-                cc.author_name,
-                cc.author_type,
-                cc.timestamp,
-                cc.embedding <=> :query_embedding as distance
-            FROM conversations c
-            JOIN conversation_chunks cc ON c.id = cc.conversation_id
-            WHERE cc.embedding IS NOT NULL
-            ORDER BY cc.embedding <=> :query_embedding
-            LIMIT :limit
-        """)
+        # Idiomatic, type-safe vector search query
+        stmt = (
+            select(
+                models.Conversation.id.label("conversation_id"),
+                models.Conversation.scenario_title,
+                models.Conversation.original_title,
+                models.Conversation.url,
+                models.Conversation.created_at,
+                models.ConversationChunk.id.label("chunk_id"),
+                models.ConversationChunk.order_index,
+                models.ConversationChunk.chunk_text,
+                models.ConversationChunk.author_name,
+                models.ConversationChunk.author_type,
+                models.ConversationChunk.timestamp,
+                models.ConversationChunk.embedding.l2_distance(query_embedding).label("distance")
+            )
+            .join(models.Conversation.chunks)
+            .filter(models.ConversationChunk.embedding.is_not(None))
+            .order_by(models.ConversationChunk.embedding.l2_distance(query_embedding))
+            .limit(top_k)
+        )
         
-        result = await self.db.execute(sql_query, {
-            'query_embedding': str(list(query_embedding)), # Pass as string representation of list
-            'limit': top_k
-        })
+        result = await self.db.execute(stmt)
         
-        search_results = []
-        for row in result:
-            search_results.append({
+        search_results = [
+            {
                 'conversation_id': row.conversation_id,
                 'scenario_title': row.scenario_title,
                 'original_title': row.original_title,
@@ -105,9 +104,10 @@ class ConversationCRUD:
                 'author_type': row.author_type,
                 'timestamp': row.timestamp,
                 'relevance_score': 1.0 - row.distance
-            })
+            } for row in result.mappings()
+        ]
         
-        logger.info(f"✅ Search completed: found {len(search_results)} results")
+        logger.info(f"✅ ORM search completed: found {len(search_results)} results")
         return search_results
 
     async def delete_conversation(self, conversation_id: int) -> bool:

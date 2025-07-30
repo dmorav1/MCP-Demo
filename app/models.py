@@ -38,7 +38,7 @@ class ConversationChunk(Base):
     conversation = relationship("Conversation", back_populates="chunks")
 
     __table_args__ = (
-        Index('ix_conversation_chunks_embedding', 'embedding', postgresql_using='ivfflat', postgresql_ops={'embedding': 'vector_l2_ops'}, postgresql_with={'lists': 100}),
+        Index('ix_conversation_chunks_embedding', 'embedding', postgresql_using='hnsw', postgresql_ops={'embedding': 'vector_l2_ops'}),
         Index('ix_conversation_chunks_conversation_order', 'conversation_id', 'order_index', unique=True),
     )
 

@@ -7,9 +7,22 @@ A Model Context Protocol (MCP) backend service for storing and retrieving conver
 - **FastAPI** REST API with automatic OpenAPI documentation
 - **PostgreSQL** with **pgvector** extension for vector similarity search
 - **OpenAI embeddings** for semantic search capabilities
+- **Async SQLAlchemy** with modern ORM patterns and dependency injection
+- **HNSW vector indexes** for high-performance similarity search
+- **Atomic transactions** for data integrity
 - **Docker** containerized deployment
 - Conversation chunking and embedding generation
-- Comprehensive test suite
+- Comprehensive async test suite
+
+## Architecture Overview
+
+The application follows a modern async architecture with dependency injection:
+
+- **Async Database Operations**: All database operations use `AsyncSession` with SQLAlchemy 2.0+
+- **Service Layer**: Business logic separated into injectable services (`EmbeddingService`, `ConversationProcessor`)
+- **CRUD Layer**: Database operations with proper ORM patterns and type-safe vector queries
+- **API Layer**: FastAPI endpoints with dependency injection and comprehensive error handling
+- **Vector Search**: Type-safe `l2_distance()` queries with HNSW indexes for optimal performance
 
 ## Dependencies & Prerequisites
 
@@ -262,6 +275,8 @@ pytest tests/
 
 ### Database Schema
 
+The database uses a two-table design optimized for vector similarity search:
+
 #### conversations table
 - `id`: Primary key
 - `scenario_title`: Optional scenario title
@@ -271,13 +286,18 @@ pytest tests/
 
 #### conversation_chunks table
 - `id`: Primary key
-- `conversation_id`: Foreign key to conversations
-- `order_index`: Order of chunk in conversation
+- `conversation_id`: Foreign key to conversations (CASCADE DELETE)
+- `order_index`: Order of chunk in conversation (unique per conversation)
 - `chunk_text`: Text content of the chunk
-- `embedding`: Vector embedding (1536 dimensions)
+- `embedding`: Vector embedding (1536 dimensions) with HNSW index
 - `author_name`: Name of message author
 - `author_type`: Type of author (human/ai)
 - `timestamp`: Timestamp of the message
+
+**Vector Search Optimization:**
+- Uses **HNSW** (Hierarchical Navigable Small World) indexes for superior performance
+- Type-safe vector operations with `l2_distance()` method
+- Atomic transactions ensure data consistency during ingestion
 
 ## Configuration
 

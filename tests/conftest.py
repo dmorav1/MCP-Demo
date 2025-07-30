@@ -34,10 +34,25 @@ def event_loop():
     loop.close()
 
 @pytest.fixture
-async def async_db_session():
-    """Create an async database session for testing."""
-    async with TestAsyncSessionLocal() as session:
-        yield session
+def async_db_session():
+    """Create a mock async database session for testing."""
+    mock_session = AsyncMock(spec=AsyncSession)
+    
+    # Mock common database operations
+    mock_session.add.return_value = None
+    mock_session.commit.return_value = None
+    mock_session.flush.return_value = None
+    mock_session.refresh.return_value = None
+    mock_session.rollback.return_value = None
+    mock_session.close.return_value = None
+    
+    # Mock execute to return empty results by default
+    mock_result = AsyncMock()
+    mock_result.scalars.return_value.all.return_value = []
+    mock_result.scalars.return_value.first.return_value = None
+    mock_session.execute.return_value = mock_result
+    
+    return mock_session
 
 @pytest.fixture
 def override_get_db(async_db_session):
@@ -92,13 +107,27 @@ def mock_conversation_processor(mock_embedding_service):
     return mock
 
 @pytest.fixture
-def override_dependencies(mock_embedding_service, mock_conversation_processor):
+def override_dependencies(mock_embedding_service, mock_conversation_processor, async_db_session):
     """Override dependency injection for testing."""
+    from app.dependencies import get_conversation_crud
+    
+    # Override service dependencies
     app.dependency_overrides[get_embedding_service] = lambda: mock_embedding_service
     app.dependency_overrides[get_conversation_processor] = lambda: mock_conversation_processor
+    
+    # Override CRUD dependency 
+    def mock_get_crud():
+        from app.crud import ConversationCRUD
+        return ConversationCRUD(db=async_db_session, processor=mock_conversation_processor)
+    
+    app.dependency_overrides[get_conversation_crud] = mock_get_crud
+    
     yield
+    
+    # Clean up overrides
     app.dependency_overrides.pop(get_embedding_service, None)
     app.dependency_overrides.pop(get_conversation_processor, None)
+    app.dependency_overrides.pop(get_conversation_crud, None)
 
 @pytest_asyncio.fixture
 async def async_client():
