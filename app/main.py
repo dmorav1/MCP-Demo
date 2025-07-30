@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Depends, HTTPException, status, Query
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.exc import SQLAlchemyError
 from typing import List
 import logging
 import os
@@ -83,11 +84,17 @@ async def ingest_conversation(
         db_conversation = await conversation_crud.create_conversation(conversation_data)
         logger.info(f"✅ Successfully ingested conversation ID: {db_conversation.id}")
         return db_conversation
-    except Exception as e:
-        logger.error(f"❌ Error ingesting conversation: {str(e)}")
+    except SQLAlchemyError as e:
+        logger.error(f"❌ Database error during ingestion: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error ingesting conversation: {str(e)}"
+            detail="A database error occurred during ingestion."
+        )
+    except Exception as e:  # Keep a general one as a fallback
+        logger.error(f"❌ An unexpected error occurred during ingestion: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An unexpected error occurred."
         )
 
 @app.get("/search", response_model=schemas.SearchResponse)
@@ -140,11 +147,17 @@ async def search_conversations(
         )
         logger.info(f"✅ Search completed successfully for query: '{q}'")
         return response
-    except Exception as e:
-        logger.error(f"❌ Error searching conversations: {str(e)}")
+    except SQLAlchemyError as e:
+        logger.error(f"❌ Database error during search: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error searching conversations: {str(e)}"
+            detail="A database error occurred during search."
+        )
+    except Exception as e:  # Keep a general one as a fallback
+        logger.error(f"❌ An unexpected error occurred during search: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An unexpected error occurred."
         )
 
 @app.get("/conversations", response_model=List[schemas.Conversation])
@@ -161,11 +174,17 @@ async def get_conversations(
         conversations = await conversation_crud.get_conversations(skip=skip, limit=limit)
         logger.info(f"✅ Retrieved {len(conversations)} conversations")
         return conversations
-    except Exception as e:
-        logger.error(f"❌ Error retrieving conversations: {str(e)}")
+    except SQLAlchemyError as e:
+        logger.error(f"❌ Database error retrieving conversations: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error retrieving conversations: {str(e)}"
+            detail="A database error occurred while retrieving conversations."
+        )
+    except Exception as e:  # Keep a general one as a fallback
+        logger.error(f"❌ An unexpected error occurred retrieving conversations: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An unexpected error occurred."
         )
 
 @app.get("/conversations/{conversation_id}", response_model=schemas.Conversation)
@@ -189,11 +208,17 @@ async def get_conversation(
         return conversation
     except HTTPException:
         raise
-    except Exception as e:
-        logger.error(f"❌ Error retrieving conversation: {str(e)}")
+    except SQLAlchemyError as e:
+        logger.error(f"❌ Database error retrieving conversation: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error retrieving conversation: {str(e)}"
+            detail="A database error occurred while retrieving the conversation."
+        )
+    except Exception as e:  # Keep a general one as a fallback
+        logger.error(f"❌ An unexpected error occurred retrieving conversation: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An unexpected error occurred."
         )
 
 @app.delete("/conversations/{conversation_id}")
@@ -217,11 +242,17 @@ async def delete_conversation(
         return {"message": "Conversation deleted successfully"}
     except HTTPException:
         raise
-    except Exception as e:
-        logger.error(f"❌ Error deleting conversation: {str(e)}")
+    except SQLAlchemyError as e:
+        logger.error(f"❌ Database error deleting conversation: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error deleting conversation: {str(e)}"
+            detail="A database error occurred while deleting the conversation."
+        )
+    except Exception as e:  # Keep a general one as a fallback
+        logger.error(f"❌ An unexpected error occurred deleting conversation: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An unexpected error occurred."
         )
 
 @app.get("/health")

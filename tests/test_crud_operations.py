@@ -96,9 +96,10 @@ async def test_create_conversation(crud_instance, mock_db_session):
     crud_instance.processor.process_conversation_for_ingestion.assert_called_once()
     
     # Verify database operations
-    assert mock_db_session.add.call_count >= 2  # Conversation + at least one chunk
-    assert mock_db_session.commit.call_count == 2  # One after conversation, one after chunks
-    assert mock_db_session.refresh.call_count == 2
+    assert mock_db_session.add.call_count == 1  # Just the conversation
+    assert mock_db_session.add_all.call_count == 1  # The chunks
+    assert mock_db_session.commit.call_count == 1  # Single atomic commit
+    assert mock_db_session.refresh.call_count == 1  # Refresh conversation
 
 @pytest.mark.asyncio
 async def test_get_conversation(crud_instance, mock_db_session):
@@ -161,38 +162,43 @@ async def test_search_conversations(crud_instance, mock_db_session, mock_embeddi
     top_k = 3
     
     # Mock search results
+    # Mock database rows as mappings
     mock_rows = [
-        MagicMock(
-            conversation_id=1,
-            scenario_title="Test 1",
-            original_title="Original 1", 
-            url="https://example1.com",
-            created_at="2023-01-01T12:00:00Z",
-            chunk_id=1,
-            order_index=0,
-            chunk_text="Test chunk 1",
-            author_name="User",
-            author_type="human",
-            timestamp="2023-01-01T12:00:00Z",
-            distance=0.2
-        ),
-        MagicMock(
-            conversation_id=2,
-            scenario_title="Test 2",
-            original_title="Original 2",
-            url="https://example2.com", 
-            created_at="2023-01-01T12:00:00Z",
-            chunk_id=2,
-            order_index=0,
-            chunk_text="Test chunk 2",
-            author_name="Assistant",
-            author_type="ai",
-            timestamp="2023-01-01T12:00:00Z",
-            distance=0.3
-        )
+        {
+            'conversation_id': 1,
+            'scenario_title': "Test 1",
+            'original_title': "Original 1",
+            'url': "https://example1.com",
+            'created_at': "2023-01-01T12:00:00Z",
+            'chunk_id': 1,
+            'order_index': 0,
+            'chunk_text': "Test chunk 1",
+            'author_name': "User",
+            'author_type': "human",
+            'timestamp': "2023-01-01T12:00:00Z",
+            'distance': 0.2
+        },
+        {
+            'conversation_id': 2,
+            'scenario_title': "Test 2",
+            'original_title': "Original 2",
+            'url': "https://example2.com", 
+            'created_at': "2023-01-01T12:00:00Z",
+            'chunk_id': 2,
+            'order_index': 0,
+            'chunk_text': "Test chunk 2",
+            'author_name': "Assistant",
+            'author_type': "ai",
+            'timestamp': "2023-01-01T12:00:00Z",
+            'distance': 0.3
+        }
     ]
     
-    mock_db_session.execute.return_value = mock_rows
+    # Create a mock result object with mappings method
+    mock_result = MagicMock()
+    mock_result.mappings.return_value = [MagicMock(**row) for row in mock_rows]
+    
+    mock_db_session.execute.return_value = mock_result
     
     result = await crud_instance.search_conversations(query, top_k)
     

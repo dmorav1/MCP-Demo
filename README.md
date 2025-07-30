@@ -10,7 +10,9 @@ A Model Context Protocol (MCP) backend service for storing and retrieving conver
 - **Async SQLAlchemy** with modern ORM patterns and dependency injection
 - **HNSW vector indexes** for high-performance similarity search
 - **Atomic transactions** for data integrity
+- **Alembic** database migrations for schema management
 - **Docker** containerized deployment
+- **Enhanced exception handling** with specific SQLAlchemy error handling
 - Conversation chunking and embedding generation
 - Comprehensive async test suite
 
@@ -23,6 +25,7 @@ The application follows a modern async architecture with dependency injection:
 - **CRUD Layer**: Database operations with proper ORM patterns and type-safe vector queries
 - **API Layer**: FastAPI endpoints with dependency injection and comprehensive error handling
 - **Vector Search**: Type-safe `l2_distance()` queries with HNSW indexes for optimal performance
+- **Database Migrations**: Alembic manages schema evolution and version control
 
 ## Dependencies & Prerequisites
 
@@ -254,8 +257,8 @@ Delete a conversation and all its chunks.
 
 3. Run database migrations:
    ```bash
-   # Execute the init-db.sql script
-   psql -h localhost -U postgres -d mcp_db -f init-db.sql
+   # Apply database migrations using Alembic
+   alembic upgrade head
    ```
 
 4. Start the development server:
