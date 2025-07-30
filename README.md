@@ -355,7 +355,10 @@ If you encounter errors like `ModuleNotFoundError: No module named 'psycopg2'`, 
 
 **Solution:** Ensure your database URL uses the correct format:
 ```bash
-# Correct format for psycopg 3
+# Correct format for asyncpg (primary adapter)
+DATABASE_URL=postgresql+asyncpg://user:password@localhost:5432/database
+
+# Alternative format for psycopg 3 (compatibility)
 DATABASE_URL=postgresql+psycopg://user:password@localhost:5432/database
 
 # Incorrect format (will try to use psycopg2)
@@ -364,8 +367,8 @@ DATABASE_URL=postgresql://user:password@localhost:5432/database
 
 **Why this happens:** 
 - psycopg2-binary doesn't support Python 3.13+
-- We use psycopg 3 (the modern PostgreSQL adapter) instead
-- SQLAlchemy needs the `+psycopg` dialect specification to use the correct driver
+- We use asyncpg as the primary async PostgreSQL adapter with psycopg 3 for compatibility
+- SQLAlchemy needs the dialect specification (`+asyncpg` or `+psycopg`) to use the correct driver
 
 #### Virtual Environment Python Version
 

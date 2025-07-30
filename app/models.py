@@ -2,13 +2,13 @@ from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Inde
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from pgvector.sqlalchemy import Vector
-import logging
 from app.database import Base
 from app.logging_config import get_logger
 
 # Get logger for this module
 logger = get_logger(__name__)
 logger.info("📋 Loading database models...")
+
 
 class Conversation(Base):
     __tablename__ = "conversations"
@@ -22,6 +22,7 @@ class Conversation(Base):
     # Relationship to conversation chunks
     chunks = relationship("ConversationChunk", back_populates="conversation")
 
+
 class ConversationChunk(Base):
     __tablename__ = "conversation_chunks"
 
@@ -29,7 +30,9 @@ class ConversationChunk(Base):
     conversation_id = Column(Integer, ForeignKey("conversations.id"), nullable=False)
     order_index = Column(Integer, nullable=False)
     chunk_text = Column(Text, nullable=False)
-    embedding = Column(Vector(1536), nullable=True)  # Dimension for text-embedding-ada-002
+    embedding = Column(
+        Vector(1536), nullable=True
+    )  # Dimension for text-embedding-ada-002
     author_name = Column(Text, nullable=True)
     author_type = Column(String(10), nullable=True)
     timestamp = Column(DateTime(timezone=True), nullable=True)
@@ -38,8 +41,19 @@ class ConversationChunk(Base):
     conversation = relationship("Conversation", back_populates="chunks")
 
     __table_args__ = (
-        Index('ix_conversation_chunks_embedding', 'embedding', postgresql_using='hnsw', postgresql_ops={'embedding': 'vector_l2_ops'}),
-        Index('ix_conversation_chunks_conversation_order', 'conversation_id', 'order_index', unique=True),
+        Index(
+            "ix_conversation_chunks_embedding",
+            "embedding",
+            postgresql_using="hnsw",
+            postgresql_ops={"embedding": "vector_l2_ops"},
+        ),
+        Index(
+            "ix_conversation_chunks_conversation_order",
+            "conversation_id",
+            "order_index",
+            unique=True,
+        ),
     )
+
 
 logger.info("✅ Database models loaded successfully")
