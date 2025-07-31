@@ -7,6 +7,9 @@ import logging
 import os
 import math
 import json
+import asyncio # Add this import
+from mcp.server.fastmcp import FastMCP
+from app.database import SessionLocal # Import SessionLocal for manual session management
 from app import models, schemas, crud
 from app.database import engine, get_db
 from app.services import ContextFormatter
@@ -34,6 +37,8 @@ logger.info("🚀 Creating database tables...")
 models.Base.metadata.create_all(bind=engine)
 logger.info("✅ Database tables created successfully")
 
+# --- INITIALIZATION ---
+logger.info("🚀 Initializing applications...")
 app = FastAPI(
     title="MCP Backend API",
     description="Model Context Protocol Backend for Conversational Data",
@@ -49,7 +54,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-logger.info("✅ FastAPI application initialized")
+mcp_app = FastMCP("Demo") # Initialize the MCP application
+logger.info("✅ FastAPI and MCP applications initialized")
 
 @app.on_event("startup")
 async def startup_event():
