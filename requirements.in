@@ -1,0 +1,14 @@
+# requirements.in
+
+# Core application dependencies
+fastapi
+uvicorn
+sqlalchemy
+psycopg[binary]
+pgvector
+python-dotenv
+openai
+alembic
+sse-starlette
+requests
+mcp[cli]
