@@ -1,0 +1,79 @@
+{
+  "scenario_title": "Backend Engineering - API Latency Debugging",
+  "original_title": "High Latency on /api/v2/users/{id}/profile endpoint",
+  "url": "https://our-company.slack.com/archives/C02A4B8D1C6/p1722437982123456",
+  "messages": [
+    {
+      "author_name": "Alex Chen",
+      "author_type": "human",
+      "content": "Hey @Priya Sharma, seeing some major latency spikes on the `/api/v2/users/{id}/profile` endpoint. We're getting frequent `504` timeouts in the frontend app. It seems intermittent but is impacting our enterprise users the most. Can you take a look? I can provide HAR files if needed.",
+      "timestamp": "2025-07-31T15:00:00Z"
+    },
+    {
+      "author_name": "Priya Sharma",
+      "author_type": "human",
+      "content": "Hi Alex, thanks for the heads-up. Definitely not what we want to see. Can you send me a `X-Request-ID` from one of the slow requests? That'll let me trace it directly in Grafana Loki.",
+      "timestamp": "2025-07-31T15:01:30Z"
+    },
+    {
+      "author_name": "Alex Chen",
+      "author_type": "human",
+      "content": "Sure, here's one from a few minutes ago: `b8d8a6b2-4d5f-4a8e-9f0a-1c7b8e9d0a1b`. The request took about 7.2 seconds.",
+      "timestamp": "2025-07-31T15:02:15Z"
+    },
+    {
+      "author_name": "Priya Sharma",
+      "author_type": "human",
+      "content": "Got it, thanks. Checking the trace now... Ah, I see it. The primary service call is fast, but it's fanning out and making a huge number of downstream calls. Looks like a classic N+1 query problem in our `PermissionsService`. We're fetching the user's roles, and then iterating through them to fetch permissions for each role one by one.",
+      "timestamp": "2025-07-31T15:08:00Z"
+    },
+    {
+      "author_name": "Priya Sharma",
+      "author_type": "human",
+      "content": "The DB query plan confirms it. We're doing a `SELECT * FROM permissions WHERE role_id = $1` inside a loop. For users with many roles, this is catastrophic. I need to refactor this to use a single query with a `JOIN` on the `role_permissions` table.",
+      "timestamp": "2025-07-31T15:09:30Z"
+    },
+    {
+      "author_name": "Alex Chen",
+      "author_type": "human",
+      "content": "That makes perfect sense. An N+1 would explain why it's worse for enterprise users with more complex permission sets. Great catch! What's the ETA on a fix?",
+      "timestamp": "2025-07-31T15:10:45Z"
+    },
+    {
+      "author_name": "Priya Sharma",
+      "author_type": "human",
+      "content": "I'm already drafting a hotfix. The logic change is small. I should have it ready for deployment to the staging environment in under an hour. I'll ping you here once it's up for you to verify.",
+      "timestamp": "2025-07-31T15:11:30Z"
+    },
+    {
+      "author_name": "Alex Chen",
+      "author_type": "human",
+      "content": "Sounds good. I'll be on standby to test.",
+      "timestamp": "2025-07-31T15:12:00Z"
+    },
+    {
+      "author_name": "Priya Sharma",
+      "author_type": "human",
+      "content": "@Alex Chen The fix is deployed to staging. The new implementation uses this query: `SELECT p.* FROM permissions p JOIN role_permissions rp ON p.id = rp.permission_id WHERE rp.role_id IN ($1, $2, ...);`. Could you please test it against the same user IDs that were slow before?",
+      "timestamp": "2025-07-31T15:55:00Z"
+    },
+    {
+      "author_name": "Alex Chen",
+      "author_type": "human",
+      "content": "Testing now... Wow, massive improvement. I'm hitting the staging endpoint with the problematic user IDs and the P99 latency is down to ~180ms. It's fixed. Looks good to go for production from my end.",
+      "timestamp": "2025-07-31T16:05:00Z"
+    },
+    {
+      "author_name": "Priya Sharma",
+      "author_type": "human",
+      "content": "Excellent news! Thanks for the quick verification. I'm merging the hotfix to `main` and kicking off the production canary deployment now. It should be fully rolled out in the next 15 minutes. Thanks again for the detailed bug report!",
+      "timestamp": "2025-07-31T16:06:30Z"
+    },
+    {
+      "author_name": "Alex Chen",
+      "author_type": "human",
+      "content": "Awesome teamwork. Glad we could squash that one quickly. Let me know if you see any anomalies post-deployment.",
+      "timestamp": "2025-07-31T16:07:15Z"
+    }
+  ]
+}
