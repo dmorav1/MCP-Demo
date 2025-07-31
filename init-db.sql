@@ -25,6 +25,6 @@ CREATE TABLE IF NOT EXISTS conversation_chunks (
 
 -- Create indexes for better performance
 CREATE INDEX IF NOT EXISTS ix_conversation_chunks_conversation_id ON conversation_chunks(conversation_id);
-CREATE INDEX IF NOT EXISTS ix_conversation_chunks_embedding ON conversation_chunks USING ivfflat (embedding vector_l2_ops) WITH (lists = 100);
+CREATE INDEX IF NOT EXISTS ix_conversation_chunks_embedding ON conversation_chunks USING hnsw (embedding vector_l2_ops);
 CREATE INDEX IF NOT EXISTS ix_conversations_created_at ON conversations(created_at);
 CREATE INDEX IF NOT EXISTS ix_conversation_chunks_timestamp ON conversation_chunks(timestamp);

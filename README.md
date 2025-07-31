@@ -7,9 +7,25 @@ A Model Context Protocol (MCP) backend service for storing and retrieving conver
 - **FastAPI** REST API with automatic OpenAPI documentation
 - **PostgreSQL** with **pgvector** extension for vector similarity search
 - **OpenAI embeddings** for semantic search capabilities
+- **Async SQLAlchemy** with modern ORM patterns and dependency injection
+- **HNSW vector indexes** for high-performance similarity search
+- **Atomic transactions** for data integrity
+- **Alembic** database migrations for schema management
 - **Docker** containerized deployment
+- **Enhanced exception handling** with specific SQLAlchemy error handling
 - Conversation chunking and embedding generation
-- Comprehensive test suite
+- Comprehensive async test suite
+
+## Architecture Overview
+
+The application follows a modern async architecture with dependency injection:
+
+- **Async Database Operations**: All database operations use `AsyncSession` with SQLAlchemy 2.0+
+- **Service Layer**: Business logic separated into injectable services (`EmbeddingService`, `ConversationProcessor`)
+- **CRUD Layer**: Database operations with proper ORM patterns and type-safe vector queries
+- **API Layer**: FastAPI endpoints with dependency injection and comprehensive error handling
+- **Vector Search**: Type-safe `l2_distance()` queries with HNSW indexes for optimal performance
+- **Database Migrations**: Alembic manages schema evolution and version control
 
 ## Dependencies & Prerequisites
 
@@ -54,17 +70,24 @@ sudo usermod -a -G docker $USER
 
 ### Python Dependencies
 
-The project uses **psycopg 3** (not psycopg2) for PostgreSQL connectivity with Python 3.13 compatibility:
+The project uses **asyncpg** for async PostgreSQL connectivity and **psycopg 3** for legacy compatibility:
 
 ```bash
 # Core dependencies (automatically installed via requirements.txt)
 fastapi==0.104.1          # Web framework
 uvicorn==0.24.0           # ASGI server
 sqlalchemy==2.0.23        # ORM
-psycopg[binary]==3.1.20   # PostgreSQL adapter (Python 3.13 compatible)
-pgvector==0.2.4           # Vector similarity search
+asyncpg==0.30.0           # Async PostgreSQL adapter (primary)
+psycopg[binary]==3.1.20   # PostgreSQL adapter (compatibility)
+pgvector==0.4.1           # Vector similarity search (updated)
 pydantic==2.5.0           # Data validation
+pydantic-settings==2.1.0  # Settings management
 openai==1.3.7             # OpenAI API client
+alembic==1.13.1           # Database migrations
+pytest==7.4.3             # Testing framework
+pytest-asyncio==0.21.1    # Async testing support
+httpx==0.25.2             # Async HTTP client for testing
+greenlet==3.2.3           # Required for SQLAlchemy async operations
 ```
 
 ### Database Requirements
@@ -79,8 +102,8 @@ openai==1.3.7             # OpenAI API client
    - Generate an API key from the dashboard
    - Add to `.env` file as `OPENAI_API_KEY`
 
-2. **Database Configuration**: 
-   - Uses `postgresql+psycopg://` connection string format
+2. **Database Configuration**:
+   - Uses `postgresql+asyncpg://` connection string format for async operations
    - Configured automatically via Docker Compose
 
 ### Quick Dependency Check
@@ -234,8 +257,8 @@ Delete a conversation and all its chunks.
 
 3. Run database migrations:
    ```bash
-   # Execute the init-db.sql script
-   psql -h localhost -U postgres -d mcp_db -f init-db.sql
+   # Apply database migrations using Alembic
+   alembic upgrade head
    ```
 
 4. Start the development server:
@@ -255,6 +278,8 @@ pytest tests/
 
 ### Database Schema
 
+The database uses a two-table design optimized for vector similarity search:
+
 #### conversations table
 - `id`: Primary key
 - `scenario_title`: Optional scenario title
@@ -264,13 +289,18 @@ pytest tests/
 
 #### conversation_chunks table
 - `id`: Primary key
-- `conversation_id`: Foreign key to conversations
-- `order_index`: Order of chunk in conversation
+- `conversation_id`: Foreign key to conversations (CASCADE DELETE)
+- `order_index`: Order of chunk in conversation (unique per conversation)
 - `chunk_text`: Text content of the chunk
-- `embedding`: Vector embedding (1536 dimensions)
+- `embedding`: Vector embedding (1536 dimensions) with HNSW index
 - `author_name`: Name of message author
 - `author_type`: Type of author (human/ai)
 - `timestamp`: Timestamp of the message
+
+**Vector Search Optimization:**
+- Uses **HNSW** (Hierarchical Navigable Small World) indexes for superior performance
+- Type-safe vector operations with `l2_distance()` method
+- Atomic transactions ensure data consistency during ingestion
 
 ## Configuration
 
@@ -325,7 +355,10 @@ If you encounter errors like `ModuleNotFoundError: No module named 'psycopg2'`, 
 
 **Solution:** Ensure your database URL uses the correct format:
 ```bash
-# Correct format for psycopg 3
+# Correct format for asyncpg (primary adapter)
+DATABASE_URL=postgresql+asyncpg://user:password@localhost:5432/database
+
+# Alternative format for psycopg 3 (compatibility)
 DATABASE_URL=postgresql+psycopg://user:password@localhost:5432/database
 
 # Incorrect format (will try to use psycopg2)
@@ -334,8 +367,8 @@ DATABASE_URL=postgresql://user:password@localhost:5432/database
 
 **Why this happens:** 
 - psycopg2-binary doesn't support Python 3.13+
-- We use psycopg 3 (the modern PostgreSQL adapter) instead
-- SQLAlchemy needs the `+psycopg` dialect specification to use the correct driver
+- We use asyncpg as the primary async PostgreSQL adapter with psycopg 3 for compatibility
+- SQLAlchemy needs the dialect specification (`+asyncpg` or `+psycopg`) to use the correct driver
 
 #### Virtual Environment Python Version
 
