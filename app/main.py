@@ -1,9 +1,12 @@
 from fastapi import FastAPI, Depends, HTTPException, status, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm import Session
 from typing import List
 import logging
 import os
+import math
+import json
 from app import models, schemas, crud
 from app.database import engine, get_db
 from app.services import ContextFormatter
@@ -13,6 +16,18 @@ from app.logging_config import setup_logging, get_logger
 log_level = os.getenv("LOG_LEVEL", "INFO")
 setup_logging(log_level)
 logger = get_logger(__name__)
+
+def safe_json_encode(obj):
+    """
+    Custom JSON encoder that handles NaN and infinity values
+    """
+    def default(o):
+        if isinstance(o, float):
+            if math.isnan(o) or math.isinf(o):
+                return 0.0
+        return o
+    
+    return json.loads(json.dumps(obj, default=default))
 
 # Create database tables
 logger.info("🚀 Creating database tables...")

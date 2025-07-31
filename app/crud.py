@@ -2,6 +2,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 from typing import List, Dict, Any, Optional
 import logging
+import math
 from app import models, schemas
 from app.services import ConversationProcessor
 from app.logging_config import get_logger
@@ -9,6 +10,20 @@ import json
 
 # Get logger for this module
 logger = get_logger(__name__)
+
+def safe_float_conversion(value, default=0.0):
+    """
+    Safely convert a value to float, handling NaN and None values
+    """
+    try:
+        if value is None:
+            return default
+        float_val = float(value)
+        if math.isnan(float_val) or math.isinf(float_val):
+            return default
+        return float_val
+    except (ValueError, TypeError):
+        return default
 
 class ConversationCRUD:
     def __init__(self, db: Session):
@@ -132,6 +147,10 @@ class ConversationCRUD:
         # Process results
         search_results = []
         for row in result:
+            # Handle potential NaN values in distance calculation
+            distance = safe_float_conversion(row.distance, default=1.0)  # Default to max distance
+            relevance_score = max(0.0, min(1.0, 1.0 - distance))  # Convert distance to relevance, clamp between 0 and 1
+            
             search_results.append({
                 'conversation_id': row.conversation_id,
                 'scenario_title': row.scenario_title,
@@ -144,7 +163,7 @@ class ConversationCRUD:
                 'author_name': row.author_name,
                 'author_type': row.author_type,
                 'timestamp': row.timestamp,
-                'relevance_score': 1.0 - row.distance  # Convert distance to relevance score
+                'relevance_score': relevance_score
             })
         
         logger.info(f"✅ Search completed: found {len(search_results)} results")
