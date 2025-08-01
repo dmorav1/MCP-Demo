@@ -1,53 +1,73 @@
 #!/bin/bash
 
-# Development startup script for MCP Backend
+# Development startup script with support for different modes
 
-echo "🚀 Starting MCP Backend Development Environment..."
+# Default to 'all' if no argument is provided
+MODE=${1:-all}
 
-# Check if .env exists
-if [ ! -f .env ]; then
-    echo "⚠️  .env file not found. Copying from .env.example..."
-    cp .env.example .env
-    echo "📝 Please update .env with your OpenAI API key and other settings."
-fi
+setup_env() {
+    echo "--- Running Environment Setup ---"
+    if [ ! -f .env ]; then
+        echo "⚠️  .env file not found. Copying from .env.example..."
+        cp .env.example .env
+    fi
 
-# Check if virtual environment exists
-if [ ! -d "venv" ]; then
-    echo "🐍 Creating Python virtual environment..."
-    python3.11 -m venv venv
-fi
+    if [ ! -d ".venv" ]; then
+        echo "🐍 Creating Python virtual environment..."
+        uv venv --python 3.11 .venv
+    fi
 
-# Activate virtual environment
-echo "🔧 Activating virtual environment..."
-source venv/bin/activate
+    echo "📦 Syncing dependencies..."
+    uv pip install -r requirements.txt
+}
 
-# Install dependencies
-echo "📦 Installing dependencies..."
-pip install -r requirements.txt
+start_db() {
+    echo "--- Starting Database ---"
+    docker-compose up -d postgres
+    echo "⏳ Waiting for PostgreSQL to be ready..."
+    
+    # Retry loop for checking DB connection
+    for i in {1..5}; do
+        docker-compose exec postgres psql -U mcp_user -d mcp_db -c "SELECT 1;" > /dev/null 2>&1
+        if [ $? -eq 0 ]; then
+            echo "✅ Database is ready!"
+            return 0
+        fi
+        echo "DB not ready, waiting... ($i/5)"
+        sleep 3
+    done
 
-# Start services with Docker Compose
-echo "🐳 Starting PostgreSQL with Docker Compose..."
-docker-compose up -d postgres
+    echo "❌ Database connection failed after several attempts."
+    return 1
+}
 
-# Wait for PostgreSQL to be ready
-echo "⏳ Waiting for PostgreSQL to be ready..."
-sleep 10
+run_server() {
+    echo "--- Starting Application Server ---"
+    echo "📖 API Docs: http://localhost:8000/docs"
+    echo "🏥 Health Check: http://localhost:8000/health"
+    uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000 --env-file .env
+}
 
-# Run database initialization if needed
-echo "🗄️  Initializing database..."
-docker-compose exec postgres psql -U mcp_user -d mcp_db -c "SELECT 1;" > /dev/null 2>&1
-if [ $? -eq 0 ]; then
-    echo "✅ Database is ready!"
+run_inspector() {
+    echo "--- Starting MCP Inspector ---"
+    echo "Ensure your database is running first by calling './start-dev.sh setup'"
+    npx @modelcontextprotocol/inspector uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --env-file .env
+}
+
+
+# Main logic to select mode
+if [ "$MODE" == "setup" ]; then
+    setup_env
+    start_db
+elif [ "$MODE" == "run" ]; then
+    run_server
+elif [ "$MODE" == "inspect" ]; then
+    run_inspector
+elif [ "$MODE" == "all" ]; then
+    setup_env
+    start_db && run_server
 else
-    echo "❌ Database connection failed. Please check your configuration."
+    echo "Unknown mode: $MODE"
+    echo "Usage: ./start-dev.sh [setup|run|inspect|all]"
     exit 1
 fi
-
-# Start the FastAPI application
-echo "🚀 Starting FastAPI application..."
-echo "📖 API Documentation will be available at: http://localhost:8000/docs"
-echo "🏥 Health Check: http://localhost:8000/health"
-echo ""
-echo "Press Ctrl+C to stop the application"
-
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000

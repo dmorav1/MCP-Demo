@@ -3,7 +3,7 @@ import asyncio
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from app.main import app
+from app.main import fastapi_app
 from app.database import get_db, Base
 from app import schemas
 
@@ -20,9 +20,9 @@ def override_get_db():
     finally:
         db.close()
 
-app.dependency_overrides[get_db] = override_get_db
+fastapi_app.dependency_overrides[get_db] = override_get_db
 
-client = TestClient(app)
+client = TestClient(fastapi_app)
 
 @pytest.fixture(scope="module")
 def setup_database():

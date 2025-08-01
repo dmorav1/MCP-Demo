@@ -1,4 +1,8 @@
 from fastapi import FastAPI, Depends, HTTPException, status, Query
+from starlette.applications import Starlette
+from starlette.routing import Mount
+from starlette.requests import Request
+from starlette.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm import Session
@@ -9,7 +13,10 @@ import math
 import json
 import asyncio # Add this import
 from mcp.server.fastmcp import FastMCP
-from app.database import SessionLocal # Import SessionLocal for manual session management
+from contextlib import asynccontextmanager
+from collections.abc import AsyncIterator
+
+from app.database import SessionLocal
 from app import models, schemas, crud
 from app.database import engine, get_db
 from app.services import ContextFormatter
@@ -19,6 +26,133 @@ from app.logging_config import setup_logging, get_logger
 log_level = os.getenv("LOG_LEVEL", "INFO")
 setup_logging(log_level)
 logger = get_logger(__name__)
+
+# Create database tables
+logger.info("🚀 Creating database tables...")
+models.Base.metadata.create_all(bind=engine)
+logger.info("✅ Database tables created successfully")
+
+# Shared State and Lifespan (NEW & IMPORTANT)
+# This dataclass will hold our shared resources, like the DB session factory.
+class AppState:
+    def __init__(self):
+        self.db_session_factory = SessionLocal
+
+app_state = AppState()
+
+# This is the modern lifespan manager for both FastAPI and MCP.
+# It ensures resources are available to both.
+@asynccontextmanager
+async def app_lifespan(app: Starlette) -> AsyncIterator[None]:
+    """
+    Manage application lifecycle. In a real app, you might connect to a DB here.
+    For this example, we're just confirming the state is set up.
+    """
+    logger.info("🌟 Application startup: Lifespan manager is running.")
+    # You can add database connection pool startup logic here if needed.
+    """Application startup event"""
+    logger.info("🌟 Application startup completed")
+    logger.info("🔗 API endpoints registered:")
+    for route in fastapi_app.routes:
+        if hasattr(route, 'methods') and hasattr(route, 'path'):
+            methods = ', '.join(route.methods)
+            logger.info(f"   {methods} {route.path}")
+    yield
+    # And cleanup logic here.
+    logger.info("🛑 Application shutdown: Lifespan manager is cleaning up.")
+    """Application shutdown event"""
+    logger.info("🛑 Application shutdown initiated")
+    logger.info("👋 MCP Backend API stopped")
+
+logger.info("🚀 Initializing MCP...")
+mcp_app = FastMCP(
+    "Conversational Data Server",
+    description="Exposes conversation ingestion and search via MCP.",
+    stateless_http=True  # This is a stateless HTTP server
+)
+# Initialize the MCP application
+logger.info("✅  MCP application initialized")
+
+@mcp_app.custom_route("/status", methods=["GET"])
+async def get_status(request: Request):
+    return JSONResponse({"server": "running"})
+
+@mcp_app.tool()
+async def search(q: str, top_k: int = 5) -> schemas.SearchResponse:
+    """
+    Search for relevant conversations using semantic similarity.
+    The search query is converted to a vector embedding and compared against
+    stored conversation chunks using cosine similarity.
+    """
+    logger.info(f"🔍 [MCP] Searching conversations with query: '{q}' (top_k={top_k})")
+    
+    # Manually get a DB session from our shared state.
+    db: Session = app_state.db_session_factory()
+    try:
+        conversation_crud = crud.ConversationCRUD(db)
+        search_results = await conversation_crud.search_conversations(q, top_k)
+        logger.info(f"🎯 [MCP] Found {len(search_results)} search results")
+        
+        # The MCP SDK expects a Pydantic model, which we already have!
+        response = schemas.SearchResponse(
+            results=[
+                schemas.SearchResult(
+                    conversation=schemas.Conversation(
+                        id=result['conversation_id'],
+                        scenario_title=result['scenario_title'],
+                        original_title=result['original_title'],
+                        url=result['url'],
+                        created_at=result['created_at'],
+                        chunks=[]
+                    ),
+                    relevance_score=result['relevance_score'],
+                    matched_chunks=[
+                        schemas.ConversationChunk(
+                            id=result['chunk_id'],
+                            conversation_id=result['conversation_id'],
+                            order_index=result['order_index'],
+                            chunk_text=result['chunk_text'],
+                            author_name=result['author_name'],
+                            author_type=result['author_type'],
+                            timestamp=result['timestamp']
+                        )
+                    ]
+                ) for result in search_results
+            ],
+            query=q,
+            total_results=len(search_results)
+        )
+        logger.info(f"✅ [MCP] Search completed successfully for query: '{q}'")
+        return response
+    except Exception as e:
+        logger.error(f"❌ [MCP] Error searching conversations: {str(e)}")
+        # For tools, it's often better to return an error within the protocol
+        # rather than raising an exception that kills the connection.
+        # However, for simplicity, we'll let it raise for now.
+        # A more robust implementation might return a SearchResponse with an error field.
+        raise
+    finally:
+        db.close()
+
+# --- INITIALIZATION ---
+logger.info("🚀 Initializing FastAPI application...")
+fastapi_app = FastAPI(
+    title="MCP Backend API",
+    description="Model Context Protocol Backend for Conversational Data",
+    version="1.0.0"
+)
+
+# Add CORS middleware
+fastapi_app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Configure appropriately for production
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+logger.info("✅ FastAPI application initialized")
+
 
 def safe_json_encode(obj):
     """
@@ -32,48 +166,8 @@ def safe_json_encode(obj):
     
     return json.loads(json.dumps(obj, default=default))
 
-# Create database tables
-logger.info("🚀 Creating database tables...")
-models.Base.metadata.create_all(bind=engine)
-logger.info("✅ Database tables created successfully")
 
-# --- INITIALIZATION ---
-logger.info("🚀 Initializing applications...")
-app = FastAPI(
-    title="MCP Backend API",
-    description="Model Context Protocol Backend for Conversational Data",
-    version="1.0.0"
-)
-
-# Add CORS middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # Configure appropriately for production
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-mcp_app = FastMCP("Demo") # Initialize the MCP application
-logger.info("✅ FastAPI and MCP applications initialized")
-
-@app.on_event("startup")
-async def startup_event():
-    """Application startup event"""
-    logger.info("🌟 Application startup completed")
-    logger.info("🔗 API endpoints registered:")
-    for route in app.routes:
-        if hasattr(route, 'methods') and hasattr(route, 'path'):
-            methods = ', '.join(route.methods)
-            logger.info(f"   {methods} {route.path}")
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    """Application shutdown event"""
-    logger.info("🛑 Application shutdown initiated")
-    logger.info("👋 MCP Backend API stopped")
-
-@app.get("/")
+@fastapi_app.get("/")
 async def root():
     """
     Root endpoint
@@ -90,7 +184,7 @@ async def root():
         }
     }
 
-@app.post("/ingest", response_model=schemas.Conversation, status_code=status.HTTP_201_CREATED)
+@fastapi_app.post("/ingest", response_model=schemas.Conversation, status_code=status.HTTP_201_CREATED)
 async def ingest_conversation(
     conversation_data: schemas.ConversationIngest,
     db: Session = Depends(get_db)
@@ -114,7 +208,7 @@ async def ingest_conversation(
             detail=f"Error ingesting conversation: {str(e)}"
         )
 
-@app.get("/search", response_model=schemas.SearchResponse)
+@fastapi_app.get("/search", response_model=schemas.SearchResponse)
 async def search_conversations(
     q: str = Query(..., description="Search query string"),
     top_k: int = Query(5, ge=1, le=50, description="Number of results to return"),
@@ -172,7 +266,7 @@ async def search_conversations(
             detail=f"Error searching conversations: {str(e)}"
         )
 
-@app.get("/conversations", response_model=List[schemas.Conversation])
+@fastapi_app.get("/conversations", response_model=List[schemas.Conversation])
 async def get_conversations(
     skip: int = Query(0, ge=0, description="Number of conversations to skip"),
     limit: int = Query(100, ge=1, le=1000, description="Maximum number of conversations to return"),
@@ -194,7 +288,7 @@ async def get_conversations(
             detail=f"Error retrieving conversations: {str(e)}"
         )
 
-@app.get("/conversations/{conversation_id}", response_model=schemas.Conversation)
+@fastapi_app.get("/conversations/{conversation_id}", response_model=schemas.Conversation)
 async def get_conversation(
     conversation_id: int,
     db: Session = Depends(get_db)
@@ -223,7 +317,7 @@ async def get_conversation(
             detail=f"Error retrieving conversation: {str(e)}"
         )
 
-@app.delete("/conversations/{conversation_id}")
+@fastapi_app.delete("/conversations/{conversation_id}")
 async def delete_conversation(
     conversation_id: int,
     db: Session = Depends(get_db)
@@ -252,7 +346,7 @@ async def delete_conversation(
             detail=f"Error deleting conversation: {str(e)}"
         )
 
-@app.get("/health")
+@fastapi_app.get("/health")
 async def health_check():
     """
     Health check endpoint
@@ -260,7 +354,19 @@ async def health_check():
     logger.info("💚 Health check endpoint accessed")
     return {"status": "healthy", "service": "mcp-backend"}
 
+app = Starlette(
+    lifespan=app_lifespan,
+    routes=[
+        # The MCP server will be available at the /mcp path
+        Mount("/mcp", mcp_app.streamable_http_app()),
+        # Your entire FastAPI application will be available at the root
+        Mount("/", fastapi_app),
+    ]
+)
+
 if __name__ == "__main__":
     import uvicorn
-    logger.info("🚀 Starting application server...")
+    logger.info("🚀 Starting unified application server (FastAPI + MCP)...")
+    logger.info("   - HTTP API available at http://0.0.0.0:8000")
+    logger.info("   - MCP available at http://0.0.0.0:8000/mcp")
     uvicorn.run(app, host="0.0.0.0", port=8000)
