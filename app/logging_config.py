@@ -1,3 +1,5 @@
+# In app/logging_config.py
+
 import logging
 import sys
 from datetime import datetime
@@ -5,9 +7,13 @@ import os
 
 def setup_logging(log_level: str = "INFO"):
     """
-    Set up comprehensive logging configuration for the MCP Backend
+    Set up comprehensive logging configuration for the MCP Backend.
+    This configuration is conditional based on the MCP_TRANSPORT environment variable.
     """
     
+    # --- NEW: Check for the environment variable to determine the mode ---
+    is_stdio_mode = os.getenv('MCP_TRANSPORT') == 'stdio'
+
     # Convert log level string to logging constant
     numeric_level = getattr(logging, log_level.upper(), logging.INFO)
     
@@ -15,7 +21,7 @@ def setup_logging(log_level: str = "INFO"):
     log_dir = "/app/logs" if os.path.exists("/app") else "logs"
     os.makedirs(log_dir, exist_ok=True)
     
-    # Create formatters
+    # Create formatters (Unchanged)
     detailed_formatter = logging.Formatter(
         '%(asctime)s | %(name)s | %(levelname)s | %(funcName)s:%(lineno)d | %(message)s',
         datefmt='%Y-%m-%d %H:%M:%S'
@@ -25,19 +31,14 @@ def setup_logging(log_level: str = "INFO"):
         '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
     )
     
-    # Configure root logger
+    # Configure root logger (Unchanged)
     root_logger = logging.getLogger()
     root_logger.setLevel(numeric_level)
     
-    # Clear any existing handlers
+    # Clear any existing handlers (Unchanged)
     root_logger.handlers.clear()
     
-    # Console handler with color coding
-    console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setLevel(numeric_level)
-    console_handler.setFormatter(simple_formatter)
-    
-    # File handler for all logs
+    # File handler for all logs (Unchanged)
     file_handler = logging.FileHandler(
         f"{log_dir}/mcp-backend.log",
         mode='a',
@@ -46,7 +47,7 @@ def setup_logging(log_level: str = "INFO"):
     file_handler.setLevel(logging.DEBUG)
     file_handler.setFormatter(detailed_formatter)
     
-    # Error file handler for errors only
+    # Error file handler for errors only (Unchanged)
     error_handler = logging.FileHandler(
         f"{log_dir}/errors.log",
         mode='a',
@@ -55,12 +56,19 @@ def setup_logging(log_level: str = "INFO"):
     error_handler.setLevel(logging.ERROR)
     error_handler.setFormatter(detailed_formatter)
     
-    # Add handlers to root logger
-    root_logger.addHandler(console_handler)
+    # --- MODIFIED: Conditionally add the console handler ---
+    # Only add the console handler if we are NOT in stdio mode.
+    if not is_stdio_mode:
+        console_handler = logging.StreamHandler(sys.stdout)
+        console_handler.setLevel(numeric_level)
+        console_handler.setFormatter(simple_formatter)
+        root_logger.addHandler(console_handler)
+
+    # Add file handlers (these are always active)
     root_logger.addHandler(file_handler)
     root_logger.addHandler(error_handler)
     
-    # Configure specific loggers
+    # Configure specific loggers (Unchanged)
     loggers_config = {
         'app.main': numeric_level,
         'app.services': numeric_level,
@@ -71,7 +79,7 @@ def setup_logging(log_level: str = "INFO"):
         'uvicorn': logging.WARNING,
         'uvicorn.access': logging.WARNING,
         'fastapi': logging.WARNING,
-        'sqlalchemy.engine': logging.WARNING,  # Reduce SQL query logs
+        'sqlalchemy.engine': logging.WARNING,
         'sqlalchemy.pool': logging.WARNING,
         'openai': logging.WARNING,
     }
@@ -80,17 +88,20 @@ def setup_logging(log_level: str = "INFO"):
         logger = logging.getLogger(logger_name)
         logger.setLevel(level)
     
-    # Log startup message
-    startup_logger = logging.getLogger("app.startup")
-    startup_logger.info("=" * 60)
-    startup_logger.info("🚀 MCP Backend Logging System Initialized")
-    startup_logger.info(f"📊 Log Level: {log_level}")
-    startup_logger.info(f"📁 Log Directory: {log_dir}")
-    startup_logger.info(f"🕒 Started at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    startup_logger.info("=" * 60)
+    # --- MODIFIED: Conditionally log the startup message ---
+    # Only log the big banner if we are NOT in stdio mode to keep the stream clean.
+    if not is_stdio_mode:
+        startup_logger = logging.getLogger("app.startup")
+        startup_logger.info("=" * 60)
+        startup_logger.info("🚀 MCP Backend Logging System Initialized (Console Mode)")
+        startup_logger.info(f"📊 Log Level: {log_level}")
+        startup_logger.info(f"📁 Log Directory: {log_dir}")
+        startup_logger.info(f"🕒 Started at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        startup_logger.info("=" * 60)
     
     return root_logger
 
+# --- The rest of your file is unchanged ---
 def get_logger(name: str) -> logging.Logger:
     """
     Get a logger with the specified name

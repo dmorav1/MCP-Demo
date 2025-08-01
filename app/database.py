@@ -1,7 +1,8 @@
 from sqlalchemy import create_engine, MetaData
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict 
+from typing import Optional
 import os
 import logging
 from dotenv import load_dotenv
@@ -14,13 +15,22 @@ logger = get_logger(__name__)
 logger.info("📄 Environment variables loaded")
 
 class Settings(BaseSettings):
-    database_url: str = os.getenv("DATABASE_URL", "postgresql+psycopg://username:password@localhost:5432/mcp_db")
-    openai_api_key: str = os.getenv("OPENAI_API_KEY", "")
-    embedding_model: str = os.getenv("EMBEDDING_MODEL", "text-embedding-ada-002")
-    embedding_dimension: int = int(os.getenv("EMBEDDING_DIMENSION", "1536"))
+    """
+    Manages application configuration using Pydantic's environment variable loading.
+    It automatically reads from .env files and the system environment.
+    """
+    # Pydantic will automatically map these uppercase field names to
+    # environment variables of the same name.
+    database_url: str = "postgresql+psycopg://username:password@localhost:5432/mcp_db"
+    openai_api_key: str = ""
+    embedding_model: str = "text-embedding-ada-002"
+    embedding_dimension: int = 1536
 
-    class Config:
-        env_file = ".env"
+    mcp_transport: Optional[str] = None
+
+    # This is the Pydantic V2 way to configure settings.
+    # It tells Pydantic to look for a .env file and to forbid extra fields.
+    model_config = SettingsConfigDict(env_file=".env", extra="forbid")
 
 settings = Settings()
 

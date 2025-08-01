@@ -45,13 +45,16 @@ run_server() {
     echo "--- Starting Application Server ---"
     echo "📖 API Docs: http://localhost:8000/docs"
     echo "🏥 Health Check: http://localhost:8000/health"
-    uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000 --env-file .env
+    echo "🔧 MCP stdio transport: available for MCP inspector"
+    uv run python -m app.main
 }
 
 run_inspector() {
     echo "--- Starting MCP Inspector ---"
     echo "Ensure your database is running first by calling './start-dev.sh setup'"
-    npx @modelcontextprotocol/inspector uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload --env-file .env
+    echo "🔧 Connecting MCP Inspector to stdio transport..."
+    # NEW - Tell the inspector to run the app as a module
+    npx @modelcontextprotocol/inspector uv run python -m app.main
 }
 
 

@@ -1,6 +1,4 @@
 from fastapi import FastAPI, Depends, HTTPException, status, Query
-from starlette.applications import Starlette
-from starlette.routing import Mount
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -13,7 +11,6 @@ import math
 import json
 import asyncio # Add this import
 from mcp.server.fastmcp import FastMCP
-from contextlib import asynccontextmanager
 from collections.abc import AsyncIterator
 
 from app.database import SessionLocal
@@ -40,42 +37,15 @@ class AppState:
 
 app_state = AppState()
 
-# This is the modern lifespan manager for both FastAPI and MCP.
-# It ensures resources are available to both.
-@asynccontextmanager
-async def app_lifespan(app: Starlette) -> AsyncIterator[None]:
-    """
-    Manage application lifecycle. In a real app, you might connect to a DB here.
-    For this example, we're just confirming the state is set up.
-    """
-    logger.info("🌟 Application startup: Lifespan manager is running.")
-    # You can add database connection pool startup logic here if needed.
-    """Application startup event"""
-    logger.info("🌟 Application startup completed")
-    logger.info("🔗 API endpoints registered:")
-    for route in fastapi_app.routes:
-        if hasattr(route, 'methods') and hasattr(route, 'path'):
-            methods = ', '.join(route.methods)
-            logger.info(f"   {methods} {route.path}")
-    yield
-    # And cleanup logic here.
-    logger.info("🛑 Application shutdown: Lifespan manager is cleaning up.")
-    """Application shutdown event"""
-    logger.info("🛑 Application shutdown initiated")
-    logger.info("👋 MCP Backend API stopped")
-
 logger.info("🚀 Initializing MCP...")
+
 mcp_app = FastMCP(
     "Conversational Data Server",
-    description="Exposes conversation ingestion and search via MCP.",
-    stateless_http=True  # This is a stateless HTTP server
+    description="Exposes conversation ingestion and search via MCP."
 )
 # Initialize the MCP application
 logger.info("✅  MCP application initialized")
 
-@mcp_app.custom_route("/status", methods=["GET"])
-async def get_status(request: Request):
-    return JSONResponse({"server": "running"})
 
 @mcp_app.tool()
 async def search(q: str, top_k: int = 5) -> schemas.SearchResponse:
@@ -354,19 +324,39 @@ async def health_check():
     logger.info("💚 Health check endpoint accessed")
     return {"status": "healthy", "service": "mcp-backend"}
 
-app = Starlette(
-    lifespan=app_lifespan,
-    routes=[
-        # The MCP server will be available at the /mcp path
-        Mount("/mcp", mcp_app.streamable_http_app()),
-        # Your entire FastAPI application will be available at the root
-        Mount("/", fastapi_app),
-    ]
-)
-
 if __name__ == "__main__":
     import uvicorn
-    logger.info("🚀 Starting unified application server (FastAPI + MCP)...")
-    logger.info("   - HTTP API available at http://0.0.0.0:8000")
-    logger.info("   - MCP available at http://0.0.0.0:8000/mcp")
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    import asyncio
+
+    # Specification 1.3: Concurrent asyncio runner
+    async def main():
+        
+        # Configure Uvicorn task
+        uvicorn_config = uvicorn.Config(
+            fastapi_app,
+            host="0.0.0.0",
+            port=8000
+        )
+        uvicorn_server = uvicorn.Server(uvicorn_config)
+
+        # Configure MCP stdio task
+        mcp_stdio_task = mcp_app.run_stdio_async()
+
+        logger.info("🚀 Starting concurrent servers...")
+        logger.info("   - HTTP API running on http://0.0.0.0:8000 (logs in fastapi_server.log)")
+        logger.info("   - MCP server running on stdio")
+
+        # Run both tasks
+        await asyncio.gather(
+            uvicorn_server.serve(),
+            mcp_stdio_task
+        )
+
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        # Shutdown logic from old lifespan
+        logger.info("🛑 Application shutdown initiated by user.")
+        logger.info("🛑 Application shutdown: Lifespan manager is cleaning up.")
+        logger.info("🛑 Application shutdown initiated")
+        logger.info("👋 MCP Backend API stopped")
