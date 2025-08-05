@@ -332,10 +332,13 @@ if __name__ == "__main__":
     async def main():
         
         # Configure Uvicorn task
+        # Get port from environment or use default
+        port = int(os.getenv("UVICORN_PORT", "8000"))
+        
         uvicorn_config = uvicorn.Config(
             fastapi_app,
             host="0.0.0.0",
-            port=8000
+            port=port
         )
         uvicorn_server = uvicorn.Server(uvicorn_config)
 
@@ -343,7 +346,7 @@ if __name__ == "__main__":
         mcp_stdio_task = mcp_app.run_stdio_async()
 
         logger.info("🚀 Starting concurrent servers...")
-        logger.info("   - HTTP API running on http://0.0.0.0:8000 (logs in fastapi_server.log)")
+        logger.info(f"   - HTTP API running on http://0.0.0.0:{port} (logs in fastapi_server.log)")
         logger.info("   - MCP server running on stdio")
 
         # Run both tasks
