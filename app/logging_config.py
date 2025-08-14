@@ -5,7 +5,7 @@ import sys
 from datetime import datetime
 import os
 
-def setup_logging(log_level: str = "INFO"):
+def setup_logging(log_level: str = "WARN"):
     """
     Set up comprehensive logging configuration for the MCP Backend.
     This configuration is conditional based on the MCP_TRANSPORT environment variable.

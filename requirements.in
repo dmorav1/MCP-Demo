@@ -12,3 +12,4 @@ alembic
 sse-starlette
 requests
 mcp[cli]
+httpx
