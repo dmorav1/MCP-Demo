@@ -340,6 +340,89 @@ Environment variables (set in `.env` file):
                        │   (Embeddings)  │
                        └─────────────────┘
 ```
+```plantuml
+ ```plantuml
+@startuml
+!theme vibrant
+
+title Technical Problem Resolution Flow
+
+skinparam sequence {
+    ArrowColor #555
+    ActorBorderColor #555
+    LifeLineBorderColor #777
+    ParticipantBorderColor #555
+    ParticipantBackgroundColor #f8f8f8
+    DatabaseBorderColor #555
+    DatabaseBackgroundColor #f8f8f8
+    ActorBackgroundColor #f8f8f8
+}
+
+actor "Client MCP + LLM" as Client
+participant "Claude Desktop" as ClaudeDesktop
+participant "Conversations (Backend)" as ConversationsBackend
+participant "MCP (Backend)" as MCPBackend
+database "Database" as DB
+participant "Generic Backend" as GenericBackend
+
+group Non-Deterministic Flow
+    Client -> ClaudeDoctor: Reports "Blank text problem"
+    activate ClaudeDoctor #1b20acff
+    note right of ClaudeDoctor
+        If there's a problem, I'll see
+        if I have a response I can use.
+        ---
+        Tool RTA:
+    end note
+
+    ClaudeDesktop -> ConversationsBackend: Search Conversations History
+    activate ConversationsBackend #a1d57eff
+    ConversationsBackend --> ClaudeDoctor: Survey Query
+    deactivate ConversationsBackend
+
+    ClaudeDesktop -> ConversationsBackend: Send Query
+    activate ConversationsBackend #a1d57eff
+    ConversationsBackend --> ClaudeDoctor: Query Response
+    deactivate ConversationsBackend
+
+    ClaudeDesktop -> ConversationsBackend: Get Conversation ID
+    activate ConversationsBackend #a1d57eff
+    ConversationsBackend --> ClaudeDoctor: conversation_id
+    deactivate ConversationsBackend
+
+    note left of Client
+        The problem could be...
+    end note
+    deactivate ClaudeDesktop
+end
+
+group Deterministic Flow
+    note over MCPBackend #F9E79F
+        Execute conversations
+        of past technical problems
+    end note
+
+    MCPBackend -> DB: Consult conversations
+    activate DB #85C1E9
+    DB --> MCPBackend: Return conversations
+    deactivate DB
+
+    MCPBackend -> GenericBackend: Process data (cv,s,a,t)
+    activate GenericBackend #F5B7B1
+    note right of GenericBackend
+        Search command in this vector:
+        v,s,a,t,j...?
+    end note
+    GenericBackend --> MCPBackend: Prompt Response
+    deactivate GenericBackend
+end
+
+@enduml
+
+
+ ```
+```
+
 
 ## Contributing
 
