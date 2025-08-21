@@ -186,7 +186,7 @@ run_inspector() {
     echo "🚀 Starting MCP Inspector..." >> inspector.log
 
     # Use the standalone MCP server runner
-    FASTAPI_BASE_URL="http://localhost:${PORT}" npx @modelcontextprotocol/inspector python3 run_mcp_server_standalone.py
+    FASTAPI_BASE_URL="http://localhost:${PORT}" npx @modelcontextprotocol/inspector uv run run_mcp_server_standalone.py
 
     echo "" >> inspector.log
     echo "🎉 MCP Inspector should now be running!" >> inspector.log
