@@ -340,7 +340,7 @@ Environment variables (set in `.env` file):
                        │   (Embeddings)  │
                        └─────────────────┘
 ```
-```plantuml
+
  ```plantuml
 @startuml
 !theme vibrant
@@ -419,8 +419,6 @@ end
 
 @enduml
 
-
- ```
 ```
 
 
