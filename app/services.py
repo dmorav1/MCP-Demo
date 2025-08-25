@@ -75,12 +75,14 @@ class ConversationProcessor:
         chunks = []
         current_chunk = ""
         current_messages = []
+        last_author = None
         
         for i, message in enumerate(messages):
             message_text = f"{message.get('author_name', 'Unknown')}: {message.get('content', '')}"
             
-            # If adding this message would exceed max_chunk_size, save current chunk
-            if len(current_chunk + message_text) > max_chunk_size and current_chunk:
+            # Split if speaker changes or max_chunk_size exceeded
+            if (last_author is not None and message.get('author_name') != last_author) or \
+                (len(current_chunk + message_text) > max_chunk_size and current_chunk):
                 logger.debug(f"🔄 Creating chunk {len(chunks)} with {len(current_messages)} messages")
                 chunks.append({
                     "order_index": len(chunks),
@@ -94,6 +96,7 @@ class ConversationProcessor:
             
             current_chunk += message_text + "\n"
             current_messages.append(message)
+            last_author = message.get('author_name')
         
         # Add the last chunk if it exists
         if current_chunk.strip():
