@@ -26,6 +26,14 @@ class ConversationChunk(ConversationChunkBase):
     class Config:
         from_attributes = True
 
+# Response-only schemas (without embeddings)
+class ConversationChunkResponse(ConversationChunkBase):
+    id: int
+    conversation_id: int
+
+    class Config:
+        from_attributes = True
+
 class ConversationBase(BaseModel):
     scenario_title: Optional[str] = None
     original_title: Optional[str] = None
@@ -42,6 +50,14 @@ class Conversation(ConversationBase):
     class Config:
         from_attributes = True
 
+class ConversationResponse(ConversationBase):
+    id: int
+    created_at: datetime
+    chunks: List[ConversationChunkResponse] = []
+
+    class Config:
+        from_attributes = True
+
 class ConversationIngest(BaseModel):
     scenario_title: Optional[str] = None
     original_title: Optional[str] = None
@@ -53,8 +69,18 @@ class SearchResult(BaseModel):
     relevance_score: float
     matched_chunks: List[ConversationChunk]
 
+class SearchResultResponse(BaseModel):
+    conversation: ConversationResponse
+    relevance_score: float
+    matched_chunks: List[ConversationChunkResponse]
+
 class SearchResponse(BaseModel):
     results: List[SearchResult]
+    query: str
+    total_results: int
+
+class SearchResponseNew(BaseModel):
+    results: List[SearchResultResponse]
     query: str
     total_results: int
 

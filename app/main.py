@@ -45,6 +45,9 @@ app.add_middleware(
 
 logger.info("✅ FastAPI application initialized")
 
+# Export for tests
+fastapi_app = app
+
 
 def safe_json_encode(obj):
     """
@@ -57,6 +60,30 @@ def safe_json_encode(obj):
         return o
     
     return json.loads(json.dumps(obj, default=default))
+
+
+def convert_conversation_to_response(conversation: models.Conversation) -> schemas.ConversationResponse:
+    """
+    Convert a database Conversation model to ConversationResponse schema (without embeddings)
+    """
+    return schemas.ConversationResponse(
+        id=conversation.id,
+        scenario_title=conversation.scenario_title,
+        original_title=conversation.original_title,
+        url=conversation.url,
+        created_at=conversation.created_at,
+        chunks=[
+            schemas.ConversationChunkResponse(
+                id=chunk.id,
+                conversation_id=chunk.conversation_id,
+                order_index=chunk.order_index,
+                chunk_text=chunk.chunk_text,
+                author_name=chunk.author_name,
+                author_type=chunk.author_type,
+                timestamp=chunk.timestamp
+            ) for chunk in conversation.chunks
+        ]
+    )
 
 
 @app.get("/")
@@ -76,7 +103,7 @@ async def root():
         }
     }
 
-@app.post("/ingest", response_model=schemas.Conversation, status_code=status.HTTP_201_CREATED)
+@app.post("/ingest", response_model=schemas.ConversationResponse, status_code=status.HTTP_201_CREATED)
 async def ingest_conversation(
     conversation_data: schemas.ConversationIngest,
     db: Session = Depends(get_db)
@@ -92,7 +119,7 @@ async def ingest_conversation(
         conversation_crud = crud.ConversationCRUD(db)
         db_conversation = await conversation_crud.create_conversation(conversation_data)
         logger.info(f"✅ Successfully ingested conversation ID: {db_conversation.id}")
-        return db_conversation
+        return convert_conversation_to_response(db_conversation)
     except Exception as e:
         logger.error(f"❌ Error ingesting conversation: {str(e)}")
         raise HTTPException(
@@ -100,7 +127,7 @@ async def ingest_conversation(
             detail=f"Error ingesting conversation: {str(e)}"
         )
 
-@app.get("/search", response_model=schemas.SearchResponse)
+@app.get("/search", response_model=schemas.SearchResponseNew)
 async def search_conversations(
     q: str = Query(..., description="Search query string"),
     top_k: int = Query(5, ge=1, le=50, description="Number of results to return"),
@@ -121,10 +148,10 @@ async def search_conversations(
         # Format results using ContextFormatter
         formatted_results = ContextFormatter.format_search_results(search_results, q)
         
-        response = schemas.SearchResponse(
+        response = schemas.SearchResponseNew(
             results=[
-                schemas.SearchResult(
-                    conversation=schemas.Conversation(
+                schemas.SearchResultResponse(
+                    conversation=schemas.ConversationResponse(
                         id=result['conversation_id'],
                         scenario_title=result['scenario_title'],
                         original_title=result['original_title'],
@@ -134,7 +161,7 @@ async def search_conversations(
                     ),
                     relevance_score=result['relevance_score'],
                     matched_chunks=[
-                        schemas.ConversationChunk(
+                        schemas.ConversationChunkResponse(
                             id=result['chunk_id'],
                             conversation_id=result['conversation_id'],
                             order_index=result['order_index'],
@@ -158,7 +185,7 @@ async def search_conversations(
             detail=f"Error searching conversations: {str(e)}"
         )
 
-@app.get("/conversations", response_model=List[schemas.Conversation])
+@app.get("/conversations", response_model=List[schemas.ConversationResponse])
 async def get_conversations(
     skip: int = Query(0, ge=0, description="Number of conversations to skip"),
     limit: int = Query(100, ge=1, le=1000, description="Maximum number of conversations to return"),
@@ -172,7 +199,7 @@ async def get_conversations(
         conversation_crud = crud.ConversationCRUD(db)
         conversations = conversation_crud.get_conversations(skip=skip, limit=limit)
         logger.info(f"✅ Retrieved {len(conversations)} conversations")
-        return conversations
+        return [convert_conversation_to_response(conv) for conv in conversations]
     except Exception as e:
         logger.error(f"❌ Error retrieving conversations: {str(e)}")
         raise HTTPException(
@@ -180,7 +207,7 @@ async def get_conversations(
             detail=f"Error retrieving conversations: {str(e)}"
         )
 
-@app.get("/conversations/{conversation_id}", response_model=schemas.Conversation)
+@app.get("/conversations/{conversation_id}", response_model=schemas.ConversationResponse)
 async def get_conversation(
     conversation_id: int,
     db: Session = Depends(get_db)
@@ -199,7 +226,7 @@ async def get_conversation(
                 detail="Conversation not found"
             )
         logger.info(f"✅ Retrieved conversation: {conversation.scenario_title}")
-        return conversation
+        return convert_conversation_to_response(conversation)
     except HTTPException:
         raise
     except Exception as e:
