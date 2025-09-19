@@ -1,0 +1,813 @@
+{
+    "jsonrpc": "2.0",
+    "id": 1,
+    "result": {
+        "tools": [
+            {
+                "name": "search_conversations",
+                "description": "\n    Search for relevant conversations using semantic similarity.\n    The search query is converted to a vector embedding and compared against\n    stored conversation chunks using cosine similarity.\n    \n    Args:\n        q: Search query string\n        top_k: Number of results to return (1-50)\n    ",
+                "inputSchema": {
+                    "properties": {
+                        "q": {
+                            "title": "Q",
+                            "type": "string"
+                        },
+                        "top_k": {
+                            "default": 5,
+                            "title": "Top K",
+                            "type": "integer"
+                        }
+                    },
+                    "required": [
+                        "q"
+                    ],
+                    "title": "search_conversationsArguments",
+                    "type": "object"
+                },
+                "outputSchema": {
+                    "$defs": {
+                        "Conversation": {
+                            "properties": {
+                                "scenario_title": {
+                                    "anyOf": [
+                                        {
+                                            "type": "string"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ],
+                                    "default": null,
+                                    "title": "Scenario Title"
+                                },
+                                "original_title": {
+                                    "anyOf": [
+                                        {
+                                            "type": "string"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ],
+                                    "default": null,
+                                    "title": "Original Title"
+                                },
+                                "url": {
+                                    "anyOf": [
+                                        {
+                                            "type": "string"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ],
+                                    "default": null,
+                                    "title": "Url"
+                                },
+                                "id": {
+                                    "title": "Id",
+                                    "type": "integer"
+                                },
+                                "created_at": {
+                                    "format": "date-time",
+                                    "title": "Created At",
+                                    "type": "string"
+                                },
+                                "chunks": {
+                                    "default": [],
+                                    "items": {
+                                        "$ref": "#/$defs/ConversationChunk"
+                                    },
+                                    "title": "Chunks",
+                                    "type": "array"
+                                }
+                            },
+                            "required": [
+                                "id",
+                                "created_at"
+                            ],
+                            "title": "Conversation",
+                            "type": "object"
+                        },
+                        "ConversationChunk": {
+                            "properties": {
+                                "order_index": {
+                                    "title": "Order Index",
+                                    "type": "integer"
+                                },
+                                "chunk_text": {
+                                    "title": "Chunk Text",
+                                    "type": "string"
+                                },
+                                "author_name": {
+                                    "anyOf": [
+                                        {
+                                            "type": "string"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ],
+                                    "default": null,
+                                    "title": "Author Name"
+                                },
+                                "author_type": {
+                                    "anyOf": [
+                                        {
+                                            "type": "string"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ],
+                                    "default": null,
+                                    "title": "Author Type"
+                                },
+                                "timestamp": {
+                                    "anyOf": [
+                                        {
+                                            "format": "date-time",
+                                            "type": "string"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ],
+                                    "default": null,
+                                    "title": "Timestamp"
+                                },
+                                "id": {
+                                    "title": "Id",
+                                    "type": "integer"
+                                },
+                                "conversation_id": {
+                                    "title": "Conversation Id",
+                                    "type": "integer"
+                                },
+                                "embedding": {
+                                    "anyOf": [
+                                        {
+                                            "items": {
+                                                "type": "number"
+                                            },
+                                            "type": "array"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ],
+                                    "default": null,
+                                    "title": "Embedding"
+                                }
+                            },
+                            "required": [
+                                "order_index",
+                                "chunk_text",
+                                "id",
+                                "conversation_id"
+                            ],
+                            "title": "ConversationChunk",
+                            "type": "object"
+                        },
+                        "SearchResult": {
+                            "properties": {
+                                "conversation": {
+                                    "$ref": "#/$defs/Conversation"
+                                },
+                                "relevance_score": {
+                                    "title": "Relevance Score",
+                                    "type": "number"
+                                },
+                                "matched_chunks": {
+                                    "items": {
+                                        "$ref": "#/$defs/ConversationChunk"
+                                    },
+                                    "title": "Matched Chunks",
+                                    "type": "array"
+                                }
+                            },
+                            "required": [
+                                "conversation",
+                                "relevance_score",
+                                "matched_chunks"
+                            ],
+                            "title": "SearchResult",
+                            "type": "object"
+                        }
+                    },
+                    "properties": {
+                        "results": {
+                            "items": {
+                                "$ref": "#/$defs/SearchResult"
+                            },
+                            "title": "Results",
+                            "type": "array"
+                        },
+                        "query": {
+                            "title": "Query",
+                            "type": "string"
+                        },
+                        "total_results": {
+                            "title": "Total Results",
+                            "type": "integer"
+                        }
+                    },
+                    "required": [
+                        "results",
+                        "query",
+                        "total_results"
+                    ],
+                    "title": "SearchResponse",
+                    "type": "object"
+                }
+            },
+            {
+                "name": "ingest_conversation",
+                "description": "\n    Ingest a new conversation into the database.\n    \n    This tool processes the conversation data, chunks it into smaller pieces,\n    generates embeddings for each chunk, and stores everything in the database.\n    \n    Args:\n        conversation_data: The conversation data to ingest\n    ",
+                "inputSchema": {
+                    "$defs": {
+                        "ConversationIngest": {
+                            "properties": {
+                                "scenario_title": {
+                                    "anyOf": [
+                                        {
+                                            "type": "string"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ],
+                                    "default": null,
+                                    "title": "Scenario Title"
+                                },
+                                "original_title": {
+                                    "anyOf": [
+                                        {
+                                            "type": "string"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ],
+                                    "default": null,
+                                    "title": "Original Title"
+                                },
+                                "url": {
+                                    "anyOf": [
+                                        {
+                                            "type": "string"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ],
+                                    "default": null,
+                                    "title": "Url"
+                                },
+                                "messages": {
+                                    "description": "List of conversation messages",
+                                    "items": {
+                                        "additionalProperties": true,
+                                        "type": "object"
+                                    },
+                                    "title": "Messages",
+                                    "type": "array"
+                                }
+                            },
+                            "required": [
+                                "messages"
+                            ],
+                            "title": "ConversationIngest",
+                            "type": "object"
+                        }
+                    },
+                    "properties": {
+                        "conversation_data": {
+                            "$ref": "#/$defs/ConversationIngest"
+                        }
+                    },
+                    "required": [
+                        "conversation_data"
+                    ],
+                    "title": "ingest_conversationArguments",
+                    "type": "object"
+                },
+                "outputSchema": {
+                    "$defs": {
+                        "ConversationChunk": {
+                            "properties": {
+                                "order_index": {
+                                    "title": "Order Index",
+                                    "type": "integer"
+                                },
+                                "chunk_text": {
+                                    "title": "Chunk Text",
+                                    "type": "string"
+                                },
+                                "author_name": {
+                                    "anyOf": [
+                                        {
+                                            "type": "string"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ],
+                                    "default": null,
+                                    "title": "Author Name"
+                                },
+                                "author_type": {
+                                    "anyOf": [
+                                        {
+                                            "type": "string"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ],
+                                    "default": null,
+                                    "title": "Author Type"
+                                },
+                                "timestamp": {
+                                    "anyOf": [
+                                        {
+                                            "format": "date-time",
+                                            "type": "string"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ],
+                                    "default": null,
+                                    "title": "Timestamp"
+                                },
+                                "id": {
+                                    "title": "Id",
+                                    "type": "integer"
+                                },
+                                "conversation_id": {
+                                    "title": "Conversation Id",
+                                    "type": "integer"
+                                },
+                                "embedding": {
+                                    "anyOf": [
+                                        {
+                                            "items": {
+                                                "type": "number"
+                                            },
+                                            "type": "array"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ],
+                                    "default": null,
+                                    "title": "Embedding"
+                                }
+                            },
+                            "required": [
+                                "order_index",
+                                "chunk_text",
+                                "id",
+                                "conversation_id"
+                            ],
+                            "title": "ConversationChunk",
+                            "type": "object"
+                        }
+                    },
+                    "properties": {
+                        "scenario_title": {
+                            "anyOf": [
+                                {
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "default": null,
+                            "title": "Scenario Title"
+                        },
+                        "original_title": {
+                            "anyOf": [
+                                {
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "default": null,
+                            "title": "Original Title"
+                        },
+                        "url": {
+                            "anyOf": [
+                                {
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "default": null,
+                            "title": "Url"
+                        },
+                        "id": {
+                            "title": "Id",
+                            "type": "integer"
+                        },
+                        "created_at": {
+                            "format": "date-time",
+                            "title": "Created At",
+                            "type": "string"
+                        },
+                        "chunks": {
+                            "default": [],
+                            "items": {
+                                "$ref": "#/$defs/ConversationChunk"
+                            },
+                            "title": "Chunks",
+                            "type": "array"
+                        }
+                    },
+                    "required": [
+                        "id",
+                        "created_at"
+                    ],
+                    "title": "Conversation",
+                    "type": "object"
+                }
+            },
+            {
+                "name": "get_conversations",
+                "description": "\n    Get all conversations with pagination.\n    \n    Args:\n        skip: Number of conversations to skip\n        limit: Maximum number of conversations to return (1-1000)\n    ",
+                "inputSchema": {
+                    "properties": {
+                        "skip": {
+                            "default": 0,
+                            "title": "Skip",
+                            "type": "integer"
+                        },
+                        "limit": {
+                            "default": 100,
+                            "title": "Limit",
+                            "type": "integer"
+                        }
+                    },
+                    "title": "get_conversationsArguments",
+                    "type": "object"
+                },
+                "outputSchema": {
+                    "$defs": {
+                        "Conversation": {
+                            "properties": {
+                                "scenario_title": {
+                                    "anyOf": [
+                                        {
+                                            "type": "string"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ],
+                                    "default": null,
+                                    "title": "Scenario Title"
+                                },
+                                "original_title": {
+                                    "anyOf": [
+                                        {
+                                            "type": "string"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ],
+                                    "default": null,
+                                    "title": "Original Title"
+                                },
+                                "url": {
+                                    "anyOf": [
+                                        {
+                                            "type": "string"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ],
+                                    "default": null,
+                                    "title": "Url"
+                                },
+                                "id": {
+                                    "title": "Id",
+                                    "type": "integer"
+                                },
+                                "created_at": {
+                                    "format": "date-time",
+                                    "title": "Created At",
+                                    "type": "string"
+                                },
+                                "chunks": {
+                                    "default": [],
+                                    "items": {
+                                        "$ref": "#/$defs/ConversationChunk"
+                                    },
+                                    "title": "Chunks",
+                                    "type": "array"
+                                }
+                            },
+                            "required": [
+                                "id",
+                                "created_at"
+                            ],
+                            "title": "Conversation",
+                            "type": "object"
+                        },
+                        "ConversationChunk": {
+                            "properties": {
+                                "order_index": {
+                                    "title": "Order Index",
+                                    "type": "integer"
+                                },
+                                "chunk_text": {
+                                    "title": "Chunk Text",
+                                    "type": "string"
+                                },
+                                "author_name": {
+                                    "anyOf": [
+                                        {
+                                            "type": "string"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ],
+                                    "default": null,
+                                    "title": "Author Name"
+                                },
+                                "author_type": {
+                                    "anyOf": [
+                                        {
+                                            "type": "string"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ],
+                                    "default": null,
+                                    "title": "Author Type"
+                                },
+                                "timestamp": {
+                                    "anyOf": [
+                                        {
+                                            "format": "date-time",
+                                            "type": "string"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ],
+                                    "default": null,
+                                    "title": "Timestamp"
+                                },
+                                "id": {
+                                    "title": "Id",
+                                    "type": "integer"
+                                },
+                                "conversation_id": {
+                                    "title": "Conversation Id",
+                                    "type": "integer"
+                                },
+                                "embedding": {
+                                    "anyOf": [
+                                        {
+                                            "items": {
+                                                "type": "number"
+                                            },
+                                            "type": "array"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ],
+                                    "default": null,
+                                    "title": "Embedding"
+                                }
+                            },
+                            "required": [
+                                "order_index",
+                                "chunk_text",
+                                "id",
+                                "conversation_id"
+                            ],
+                            "title": "ConversationChunk",
+                            "type": "object"
+                        }
+                    },
+                    "properties": {
+                        "result": {
+                            "items": {
+                                "$ref": "#/$defs/Conversation"
+                            },
+                            "title": "Result",
+                            "type": "array"
+                        }
+                    },
+                    "required": [
+                        "result"
+                    ],
+                    "title": "get_conversationsOutput",
+                    "type": "object"
+                }
+            },
+            {
+                "name": "get_conversation",
+                "description": "\n    Get a specific conversation by ID.\n    \n    Args:\n        conversation_id: The ID of the conversation to retrieve\n    ",
+                "inputSchema": {
+                    "properties": {
+                        "conversation_id": {
+                            "title": "Conversation Id",
+                            "type": "integer"
+                        }
+                    },
+                    "required": [
+                        "conversation_id"
+                    ],
+                    "title": "get_conversationArguments",
+                    "type": "object"
+                },
+                "outputSchema": {
+                    "$defs": {
+                        "ConversationChunk": {
+                            "properties": {
+                                "order_index": {
+                                    "title": "Order Index",
+                                    "type": "integer"
+                                },
+                                "chunk_text": {
+                                    "title": "Chunk Text",
+                                    "type": "string"
+                                },
+                                "author_name": {
+                                    "anyOf": [
+                                        {
+                                            "type": "string"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ],
+                                    "default": null,
+                                    "title": "Author Name"
+                                },
+                                "author_type": {
+                                    "anyOf": [
+                                        {
+                                            "type": "string"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ],
+                                    "default": null,
+                                    "title": "Author Type"
+                                },
+                                "timestamp": {
+                                    "anyOf": [
+                                        {
+                                            "format": "date-time",
+                                            "type": "string"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ],
+                                    "default": null,
+                                    "title": "Timestamp"
+                                },
+                                "id": {
+                                    "title": "Id",
+                                    "type": "integer"
+                                },
+                                "conversation_id": {
+                                    "title": "Conversation Id",
+                                    "type": "integer"
+                                },
+                                "embedding": {
+                                    "anyOf": [
+                                        {
+                                            "items": {
+                                                "type": "number"
+                                            },
+                                            "type": "array"
+                                        },
+                                        {
+                                            "type": "null"
+                                        }
+                                    ],
+                                    "default": null,
+                                    "title": "Embedding"
+                                }
+                            },
+                            "required": [
+                                "order_index",
+                                "chunk_text",
+                                "id",
+                                "conversation_id"
+                            ],
+                            "title": "ConversationChunk",
+                            "type": "object"
+                        }
+                    },
+                    "properties": {
+                        "scenario_title": {
+                            "anyOf": [
+                                {
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "default": null,
+                            "title": "Scenario Title"
+                        },
+                        "original_title": {
+                            "anyOf": [
+                                {
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "default": null,
+                            "title": "Original Title"
+                        },
+                        "url": {
+                            "anyOf": [
+                                {
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ],
+                            "default": null,
+                            "title": "Url"
+                        },
+                        "id": {
+                            "title": "Id",
+                            "type": "integer"
+                        },
+                        "created_at": {
+                            "format": "date-time",
+                            "title": "Created At",
+                            "type": "string"
+                        },
+                        "chunks": {
+                            "default": [],
+                            "items": {
+                                "$ref": "#/$defs/ConversationChunk"
+                            },
+                            "title": "Chunks",
+                            "type": "array"
+                        }
+                    },
+                    "required": [
+                        "id",
+                        "created_at"
+                    ],
+                    "title": "Conversation",
+                    "type": "object"
+                }
+            },
+            {
+                "name": "delete_conversation",
+                "description": "\n    Delete a conversation and all its chunks.\n    \n    Args:\n        conversation_id: The ID of the conversation to delete\n    ",
+                "inputSchema": {
+                    "properties": {
+                        "conversation_id": {
+                            "title": "Conversation Id",
+                            "type": "integer"
+                        }
+                    },
+                    "required": [
+                        "conversation_id"
+                    ],
+                    "title": "delete_conversationArguments",
+                    "type": "object"
+                }
+            },
+            {
+                "name": "health_check",
+                "description": "\n    Check the health status of the FastAPI backend service.\n    ",
+                "inputSchema": {
+                    "properties": {},
+                    "title": "health_checkArguments",
+                    "type": "object"
+                }
+            }
+        ]
+    }
+} { metadata: undefined
+}
