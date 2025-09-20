@@ -1,0 +1,14 @@
+# docker-compose.yml
+
+services:
+  slackbot:
+    build: .
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    environment:
+      - PORT=3000
+    command: ["python", "bot.py"]
+    volumes:
+      - .:/usr/src/app
