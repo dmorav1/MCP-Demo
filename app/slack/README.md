@@ -45,4 +45,22 @@ Copy the example env file and fill in your tokens:
 
 ```bash
 cp .env.example .env
+```
 # edit .env and set SLACK_BOT_TOKEN + SLACK_APP_TOKEN at minimum
+
+
+## 3) Run socket reader using Docker
+```bash
+export SLACK_BOT_TOKEN='xoxb-REPLACE'
+export SLACK_APP_TOKEN='xapp-REPLACE'
+cd app/slack
+docker build -t mcp-slack-bot:dev .
+docker run --rm -it \
+  --name slack-reader \
+  -e SLACK_BOT_TOKEN="$SLACK_BOT_TOKEN" \
+  -e SLACK_APP_TOKEN="$SLACK_APP_TOKEN" \
+  -e READ_ONLY=true \
+  -v "$PWD":/usr/src/app -w /usr/src/app \
+  mcp-slack-bot:dev \
+  python -u tools/socket_reader.py --channel warchan-ai --interval 120
+```

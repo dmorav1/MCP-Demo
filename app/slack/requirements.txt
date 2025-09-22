@@ -1,2 +1,4 @@
 flask>=2.3
+slack-bolt>=1.19.0
 slack_sdk>=3.27.1
+certifi>=2024.2.2
