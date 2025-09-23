@@ -41,8 +41,14 @@ logger.info(f"🤖 OpenAI API Key: {'Set' if settings.openai_api_key else 'Not S
 logger.info(f"📊 Embedding Model: {settings.embedding_model}")
 logger.info(f"📏 Embedding Dimension: {settings.embedding_dimension}")
 
-logger.info("🔄 Creating database engine...")
-engine = create_engine(settings.database_url)
+raw_url = settings.database_url or os.getenv("DATABASE_URL", "")
+db_url = raw_url.strip().strip("'").strip('"')
+if not db_url:
+    raise RuntimeError("DATABASE_URL is not set")
+logger = get_logger(__name__) if "get_logger" in globals() else None
+if logger:
+    logger.info(f"Using DATABASE_URL={db_url}")
+engine = create_engine(db_url, pool_pre_ping=True)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 logger.info("✅ Database engine created successfully")
 

@@ -7,6 +7,7 @@ from app import models, schemas
 from app.services import ConversationProcessor
 from app.logging_config import get_logger
 import json
+from datetime import datetime
 
 # Get logger for this module
 logger = get_logger(__name__)
@@ -74,6 +75,41 @@ class ConversationCRUD:
         self.db.refresh(db_conversation)
         logger.info(f"✅ Successfully created conversation with {chunks_count} chunks")
         return db_conversation
+
+    def create_conversation_sync(self, conversation_data: schemas.ConversationIngest):
+        """
+        Synchronous version of create_conversation for thread-based processing
+        """
+        try:
+            # Create conversation record
+            db_conversation = models.Conversation(
+                scenario_title=conversation_data.scenario_title,
+                original_title=conversation_data.original_title,
+                url=conversation_data.url,
+                created_at=datetime.utcnow()
+            )
+            
+            self.db.add(db_conversation)
+            self.db.commit()
+            self.db.refresh(db_conversation)
+            
+            # Process messages and create embeddings
+            for msg_data in conversation_data.conversation:
+                # Create message record
+                db_message = models.Message(
+                    conversation_id=db_conversation.id,
+                    author=msg_data["author"],
+                    content=msg_data["content"],
+                    timestamp=datetime.fromisoformat(msg_data["timestamp"]) if msg_data.get("timestamp") else datetime.utcnow()
+                )
+                self.db.add(db_message)
+            
+            self.db.commit()
+            return db_conversation
+            
+        except Exception as e:
+            self.db.rollback()
+            raise e
 
     def get_conversation(self, conversation_id: int) -> Optional[models.Conversation]:
         """

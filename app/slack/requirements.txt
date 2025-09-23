@@ -1,4 +1,12 @@
 flask>=2.3
+sqlalchemy>=1.4
+psycopg2-binary>=2.9.0
+pydantic>=2
+pydantic-settings>=2.0.0
+pgvector>=0.2.5
 slack-bolt>=1.19.0
 slack_sdk>=3.27.1
 certifi>=2024.2.2
+fastapi>=0.104.0
+uvicorn>=0.24.0
+openai>=1.40.0
