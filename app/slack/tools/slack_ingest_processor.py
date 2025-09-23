@@ -39,56 +39,60 @@ class SlackConversationProcessor:
     
     def format_message_for_ingestion(self, messages: List[Dict], channel_name: str) -> schemas.ConversationIngest:
         """
-        Convert Slack messages to ConversationIngest format
+        Convert Slack messages to ConversationIngest format expected by /ingest
+        (scenario_title, original_title, url, messages=[{author_name, author_type, content, timestamp}])
         """
         if not messages:
             raise ValueError("No messages to process")
-        
-        # Sort messages by timestamp
+
+        # Sort by ts (oldest first)
         sorted_messages = sorted(messages, key=lambda m: float(m.get("ts", "0")))
-        
-        # Create scenario title based on first and last message
-        first_msg = sorted_messages[0]
-        last_msg = sorted_messages[-1]
-        first_time = datetime.fromtimestamp(float(first_msg["ts"]))
-        last_time = datetime.fromtimestamp(float(last_msg["ts"]))
-        
+
+        first_ts = float(sorted_messages[0]["ts"])
+        last_ts = float(sorted_messages[-1]["ts"])
+        first_time = datetime.fromtimestamp(first_ts, tz=timezone.utc)
+        last_time = datetime.fromtimestamp(last_ts, tz=timezone.utc)
+
         scenario_title = f"#{channel_name} conversation ({first_time.strftime('%Y-%m-%d %H:%M')} - {last_time.strftime('%H:%M')})"
-        
-        # Build conversation content
-        conversation_parts = []
+        original_title = f"Slack #{channel_name} - {first_time.strftime('%Y-%m-%d')}"
+
+        items: List[Dict[str, Any]] = []
         for msg in sorted_messages:
-            timestamp = datetime.fromtimestamp(float(msg["ts"]))
-            user_name = msg.get("user_name", msg.get("user", "Unknown"))
-            text = msg.get("text", "")
-            
-            # Skip empty messages
-            if not text.strip():
+            text = (msg.get("text") or "").strip()
+            if not text:
                 continue
-                
-            conversation_parts.append({
-                "author": user_name,
-                "content": text,
-                "timestamp": timestamp.isoformat()
-            })
-        
-        if len(conversation_parts) < self.min_messages:
-            raise ValueError(f"Not enough meaningful messages ({len(conversation_parts)} < {self.min_messages})")
-        
+            # Prefer resolved user_name added in the poll loop
+            user_name = msg.get("user_name") or msg.get("username") or msg.get("user") or "Unknown"
+            is_bot = bool(msg.get("bot_id"))
+            author_type = "ai" if is_bot else "human"
+            ts_iso = datetime.fromtimestamp(float(msg["ts"]), tz=timezone.utc).isoformat()
+
+            items.append(
+                {
+                    "author_name": user_name,
+                    "author_type": author_type,
+                    "content": text,
+                    "timestamp": ts_iso,
+                }
+            )
+
+        if len(items) < self.min_messages:
+            raise ValueError(f"Not enough meaningful messages ({len(items)} < {self.min_messages})")
+
         return schemas.ConversationIngest(
             scenario_title=scenario_title,
-            original_title=f"Slack #{channel_name} - {first_time.strftime('%Y-%m-%d')}",
+            original_title=original_title,
             url=f"slack://channel/{channel_name}",
-            conversation=conversation_parts
+            messages=items,  # <- correct field
         )
-    
+
     def process_messages_batch(self, messages: List[Dict], channel_name: str) -> bool:
         """
-        Process a batch of messages and ingest into database (synchronous)
+        Process a batch synchronously using existing CRUD that expects ConversationIngest
         """
         try:
             conversation_data = self.format_message_for_ingestion(messages, channel_name)
-            # Use synchronous database operations
+            # Your CRUD should already accept the schema produced by /ingest
             db_conversation = self.conversation_crud.create_conversation_sync(conversation_data)
             logger.info(f"✅ Ingested conversation ID: {db_conversation.id} - {conversation_data.scenario_title}")
             return True
