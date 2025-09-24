@@ -41,17 +41,27 @@ start_db() {
     return 1
 }
 
+# Pick the right Python
+if [ -x ".venv/bin/python" ]; then
+  PYTHON="./.venv/bin/python"
+else
+  PYTHON="$(command -v python3 || command -v python)"
+fi
+
 wait_for_db() {
   echo "🔍 Waiting for database..."
   for i in {1..60}; do
-    python - <<'PY' && { echo "✅ Database connection verified"; return 0; } || true
+    "$PYTHON" - <<'PY' && { echo "✅ Database connection verified"; return 0; } || true
 import os
 from sqlalchemy import create_engine, text
-url = os.environ.get("DATABASE_URL","")
+url = os.environ.get("DATABASE_URL", "").strip().strip("'").strip('"')
 if not url:
     raise SystemExit(1)
+# normalize to psycopg v3 to avoid psycopg2 import
+if url.startswith("postgresql://"):
+    url = "postgresql+psycopg://" + url[len("postgresql://"):]
 try:
-    e = create_engine(url)
+    e = create_engine(url, pool_pre_ping=True)
     with e.connect() as c:
         c.execute(text("select 1"))
 except Exception as ex:
