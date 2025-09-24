@@ -1,15 +1,14 @@
 # requirements.in
 
 # Core application dependencies
-fastapi
-uvicorn
-sqlalchemy
-psycopg[binary]
-pgvector
-python-dotenv
-openai
-alembic
-sse-starlette
-requests
-mcp[cli]
-httpx
+fastapi>=0.104.0
+uvicorn>=0.24.0
+sqlalchemy>=1.4.0
+pydantic>=2.0.0
+pydantic-settings>=2.0.0
+python-dotenv>=1.0.0
+pgvector>=0.2.5
+psycopg[binary]>=3.2.3
+requests>=2.31.0
+slack_sdk>=3.27.1
+certifi>=2024.2.2

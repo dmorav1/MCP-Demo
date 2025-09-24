@@ -41,6 +41,41 @@ start_db() {
     return 1
 }
 
+wait_for_db() {
+  echo "🔍 Waiting for database..."
+  for i in {1..60}; do
+    python - <<'PY' && { echo "✅ Database connection verified"; return 0; } || true
+import os
+from sqlalchemy import create_engine, text
+url = os.environ.get("DATABASE_URL","")
+if not url:
+    raise SystemExit(1)
+try:
+    e = create_engine(url)
+    with e.connect() as c:
+        c.execute(text("select 1"))
+except Exception as ex:
+    print(f"DB probe failed: {ex}")
+    raise
+PY
+    sleep 1
+  done
+  echo "❌ Database not reachable with DATABASE_URL=${DATABASE_URL}"
+  exit 1
+}
+
+# Call this early (after docker compose up) to set DATABASE_URL if not provided
+resolve_db_port() {
+  if [ -z "${DATABASE_URL:-}" ]; then
+    # Try to read published port from docker compose (service name may be 'postgres' or 'db')
+    DB_PORT=$(docker compose port postgres 5432 2>/dev/null | awk -F: '{print $2}')
+    [ -z "$DB_PORT" ] && DB_PORT=$(docker compose port db 5432 2>/dev/null | awk -F: '{print $2}')
+    [ -z "$DB_PORT" ] && DB_PORT=5432
+    export DATABASE_URL="postgresql+psycopg://postgres:password@127.0.0.1:${DB_PORT}/mcp_demo"
+    echo "🧭 Using DATABASE_URL=${DATABASE_URL}"
+  fi
+}
+
 run_server() {
     echo "--- Starting Application Servers ---" >> server.log
     
@@ -61,6 +96,8 @@ run_server() {
         echo "✅ Database connection verified" >> server.log
     fi
 
+    wait_for_db
+
     echo "📖 API Docs: http://localhost:${PORT}/docs" >> server.log
     echo "🏥 Health Check: http://localhost:${PORT}/health" >> server.log
     echo "🔧 MCP server: available via stdio transport" >> server.log
@@ -68,19 +105,39 @@ run_server() {
     # Activate virtual environment
     source .venv/bin/activate
     
-    # Start FastAPI server in background
-    echo "🚀 Starting FastAPI server..." >> server.log
+    # Start FastAPI server (background)
     UVICORN_PORT=${PORT} python -m app.main &
     FASTAPI_PID=$!
-    
-    # Wait a moment for FastAPI to start
-    sleep 2
-    
-    # Start MCP server
-    echo "🚀 Starting MCP server..." >> server.log
-    FASTAPI_BASE_URL="http://localhost:${PORT}" python run_mcp_server_standalone.py &
-    MCP_PID=$!
-    
+
+    # Wait for FastAPI to be ready
+    for i in {1..30}; do
+      sleep 1
+      if curl -sf "http://localhost:${PORT}/health" >/dev/null; then break; fi
+    done
+
+    # Before launching Slack ingest
+    python -c "import slack_sdk, requests, certifi" >/dev/null 2>&1 || {
+      echo "⚠️  Missing slack_sdk/requests/certifi in .venv; Slack ingest disabled." >> server.log
+      ENABLE_SLACK_INGEST=false
+    }
+
+    # Start Slack ingest (background)
+    if [ "${ENABLE_SLACK_INGEST:-true}" = "true" ] && [ -n "${SLACK_BOT_TOKEN:-}" ]; then
+      FASTAPI_BASE_URL="http://localhost:${PORT}" \
+      SLACK_CHANNEL="${SLACK_CHANNEL:-warchan-ai}" \
+      python -m app.slack.tools.slack_ingest_processor \
+        --channel "${SLACK_CHANNEL:-warchan-ai}" \
+        --interval "${SLACK_POLL_INTERVAL:-120}" \
+        --batch-size "${SLACK_BATCH_SIZE:-20}" \
+        --min-messages "${SLACK_MIN_MESSAGES:-3}" \
+        --state-file ".slack_ingest_state.json" \
+        >> server.log 2>&1 &
+      SLACK_PID=$!
+      echo "Slack ingest PID: $SLACK_PID"
+    else
+      echo "Slack ingest disabled (set SLACK_BOT_TOKEN and ENABLE_SLACK_INGEST=true)."
+    fi
+
     # Function to cleanup both processes on exit
     cleanup() {
         echo "🛑 Shutting down servers..."
@@ -207,18 +264,6 @@ elif [ "$MODE" == "inspect" ]; then
 elif [ "$MODE" == "all" ]; then
     setup_env
     start_db && run_server
-elif [ "$MODE" == "mcp_run" ]; then
-    run_mcp_server
-else
-    echo "Unknown mode: $MODE"
-    echo "Usage: ./start-dev.sh [setup|run|inspect|all]"
-    echo ""
-    echo "Modes:"
-    echo "  setup   - Set up environment and start database only"
-    echo "  run     - Start both FastAPI and MCP servers concurrently"
-    echo "  inspect - Start MCP Inspector (requires database and FastAPI server)"
-    echo "  all     - Set up environment, start database, and run both servers"
-    echo ""
-    echo "💡 Tip: Use 'inspect' mode to debug and test your MCP server with a web UI"
-    exit 1
 fi
+
+run_server
