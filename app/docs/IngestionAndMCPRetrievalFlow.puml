@@ -1,0 +1,44 @@
+@startuml
+title Slack → DB Ingestion and MCP Retrieval Flow
+
+actor Developer as Dev
+participant "Slack Channel" as Slack
+participant "Slack Ingest Worker\n(start-dev.sh)" as Ingest
+participant "FastAPI Service" as API
+participant "ConversationProcessor\n(chunk + embed)" as Proc
+participant "EmbeddingService\n(local: all-MiniLM-L6-v2 → pad 1536)" as Emb
+participant "SentenceTransformer\n(local model)" as ST
+database "Postgres + pgvector" as DB
+participant "Search API\n(/search)" as Search
+participant "MCP Server" as MCP
+actor "User" as User
+
+== Ingestion ==
+Slack -> Ingest : Read messages via Slack SDK
+Ingest -> API : POST /ingest {scenario, url, messages[]}
+API -> Proc : process_conversation_for_ingestion(payload)
+Proc -> Proc : Chunk messages (speaker/size boundaries)
+Proc -> Emb : generate_embeddings_batch(chunk_texts)
+Emb -> ST : encode(texts) → 384-d vectors
+ST --> Emb : embeddings[384]
+Emb -> Emb : pad/truncate → 1536 to match DB
+Emb --> Proc : embeddings[1536]
+Proc --> API : chunks + embeddings
+API -> DB : INSERT conversations, conversation_chunks(embedding vector(1536))
+DB --> API : commit
+API --> Ingest : 201 Created
+
+== Retrieval for MCP ==
+User -> MCP : Ask question
+MCP -> Search : GET /search?q=...
+Search -> Emb : embed(query)
+Emb -> ST : encode([q]) → 384-d
+ST --> Emb : embedding[384]
+Emb -> Emb : pad to 1536
+Emb --> Search : query_embedding[1536]
+Search -> DB : SELECT ... ORDER BY embedding <=> :query_embedding LIMIT k
+DB --> Search : top-k chunks + meta
+Search --> MCP : results (ranked chunks)
+MCP -> MCP : Build augmented prompt with results
+MCP --> User : Answer grounded in past conversations
+@enduml

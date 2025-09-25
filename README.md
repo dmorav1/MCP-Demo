@@ -497,6 +497,103 @@ Make sure your `.env` file has a valid OpenAI API key:
 OPENAI_API_KEY=sk-your-actual-api-key-here
 ```
 
-## License
+# MCP Demo: Slack → Vector DB → Context-Augmented Answers
 
-MIT License
+This project ingests messages from a Slack channel, chunks and embeds them, stores them in Postgres with pgvector, and retrieves the most relevant chunks to augment answers served via an MCP server.
+
+## Architecture
+
+- Slack Ingest Worker (spawned by `start-dev.sh`) reads channel messages via Slack SDK and posts them to the API `/ingest`.
+- FastAPI service validates and processes the conversation:
+  - ConversationProcessor chunks messages by speaker/size.
+  - EmbeddingService generates embeddings:
+    - Local model: `all-MiniLM-L6-v2` (384-d), padded to 1536 to match DB column `vector(1536)`.
+    - OpenAI can be used alternatively if configured.
+- Postgres + pgvector stores:
+  - `conversations`
+  - `conversation_chunks(embedding vector(1536))` with IVFFlat index.
+- Retrieval:
+  - `/search` embeds the query, pads to 1536, and uses pgvector similarity (`<=>`) to return top-k chunks.
+  - MCP server uses those chunks to augment the prompt and answer user questions grounded in Slack conversations.
+
+Diagram: see `docs/diagrams/ingest_and_retrieval.puml`.
+
+## Data Model
+
+- conversations
+  - id, scenario_title, original_title, url, created_at
+- conversation_chunks
+  - id, conversation_id (FK), order_index, chunk_text, author_name, author_type, timestamp
+  - embedding vector(1536), IVFFlat index (`vector_l2_ops`)
+
+## Configuration (.env)
+
+```
+DATABASE_URL=postgresql+psycopg://<user>:<password>@127.0.0.1:5433/<db>
+EMBEDDING_PROVIDER=local
+EMBEDDING_MODEL=all-MiniLM-L6-v2
+EMBEDDING_DIMENSION=1536
+SLACK_BOT_TOKEN=...
+SLACK_CHANNEL=...
+ENABLE_SLACK_INGEST=true
+```
+
+Notes:
+- 127.0.0.1 (not 0.0.0.0) for local Docker access.
+- Local model outputs 384 dims; service pads to 1536 to match DB. If you switch DB to `vector(384)`, remove padding by setting `EMBEDDING_DIMENSION=384` and migrating the column.
+
+## Running Locally (macOS)
+
+1) Install dependencies into the venv (NumPy pinned for Py3.11/macOS).
+```
+source .venv/bin/activate || python3 -m venv .venv && source .venv/bin/activate
+uv pip install -r requirements.txt
+```
+
+2) Start Postgres and the API.
+```
+./start-dev.sh all
+```
+
+3) Verify health.
+- API Docs: http://localhost:8000/docs
+- Health: http://localhost:8000/health
+
+4) Ingest test data.
+```
+curl -s -X POST http://localhost:8000/ingest \
+  -H "Content-Type: application/json" \
+  -d '{"scenario_title":"demo","original_title":"demo","url":"u","messages":[{"author_name":"user","author_type":"human","content":"hello world"}]}'
+```
+
+5) Retrieve conversations and chunks.
+```
+curl -s "http://localhost:8000/conversations?skip=0&limit=10" | jq .
+```
+
+6) Search (retrieval).
+```
+curl -s "http://localhost:8000/search?q=hello&top_k=3" | jq .
+```
+
+## MCP Integration
+
+- The MCP server calls the `/search` endpoint with the user’s query.
+- The API returns top-k chunks (id, text, author, timestamp, scores).
+- MCP constructs an augmented prompt (question + retrieved chunks) and produces grounded answers.
+
+## Troubleshooting
+
+- Duplicate route warnings: ensure only one `/ingest` and one `/conversations` route is active.
+- NameError logger/settings: every module that calls `logger.` must define `logger = get_logger(__name__)`; import `settings` where used.
+- Embedding dimension mismatch:
+  - Keep DB at 1536 and pad local vectors to 1536 (default here).
+  - Or migrate DB to `vector(384)` if you want native 384-d local embeddings.
+- NumPy errors with sentence-transformers:
+  - Ensure `numpy>=1.26,<2.0` is installed in the venv used by `start-dev.sh`.
+
+## Performance Notes
+
+- IVFFlat index speeds similarity queries; tune `lists` per data volume.
+- Use `selectinload` to eager-load chunks in list endpoints.
+- Session factory sets `expire_on_commit=False` to avoid stale attribute issues during response building.
