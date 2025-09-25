@@ -1,18 +1,14 @@
 from fastapi import FastAPI, Depends, HTTPException, status, Query
-from starlette.requests import Request
-from starlette.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.encoders import jsonable_encoder
 from sqlalchemy.orm import Session
 from typing import List
-import logging
 import os
 import math
 import json
 
-from app.database import SessionLocal
 from app import models, schemas, crud
 from app.database import engine, get_db
+from app.routers.ingest import router as ingest_router
 from app.services import ContextFormatter
 from app.logging_config import setup_logging, get_logger
 
@@ -42,6 +38,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Mount routers once
+app.include_router(ingest_router, tags=["ingest"])
 
 logger.info("✅ FastAPI application initialized")
 
@@ -103,30 +102,6 @@ async def root():
         }
     }
 
-@app.post("/ingest", response_model=schemas.ConversationResponse, status_code=status.HTTP_201_CREATED)
-async def ingest_conversation(
-    conversation_data: schemas.ConversationIngest,
-    db: Session = Depends(get_db)
-):
-    """
-    Ingest a new conversation into the database.
-    
-    This endpoint processes the conversation data, chunks it into smaller pieces,
-    generates embeddings for each chunk, and stores everything in the database.
-    """
-    logger.info(f"📥 Ingesting conversation: {conversation_data.scenario_title}")
-    try:
-        conversation_crud = crud.ConversationCRUD(db)
-        db_conversation = await conversation_crud.create_conversation(conversation_data)
-        logger.info(f"✅ Successfully ingested conversation ID: {db_conversation.id}")
-        return convert_conversation_to_response(db_conversation)
-    except Exception as e:
-        logger.error(f"❌ Error ingesting conversation: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error ingesting conversation: {str(e)}"
-        )
-
 @app.get("/search", response_model=schemas.SearchResponseNew)
 async def search_conversations(
     q: str = Query(..., description="Search query string"),
@@ -186,7 +161,7 @@ async def search_conversations(
         )
 
 @app.get("/conversations", response_model=List[schemas.ConversationResponse])
-async def get_conversations(
+def list_conversations(
     skip: int = Query(0, ge=0, description="Number of conversations to skip"),
     limit: int = Query(100, ge=1, le=1000, description="Maximum number of conversations to return"),
     db: Session = Depends(get_db)
@@ -198,14 +173,11 @@ async def get_conversations(
     try:
         conversation_crud = crud.ConversationCRUD(db)
         conversations = conversation_crud.get_conversations(skip=skip, limit=limit)
-        logger.info(f"✅ Retrieved {len(conversations)} conversations")
+        logger.info(f"Returned {len(conversations)} conversations")
         return [convert_conversation_to_response(conv) for conv in conversations]
     except Exception as e:
-        logger.error(f"❌ Error retrieving conversations: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error retrieving conversations: {str(e)}"
-        )
+        logger.error(f"Error retrieving conversations: {e}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve conversations")
 
 @app.get("/conversations/{conversation_id}", response_model=schemas.ConversationResponse)
 async def get_conversation(

@@ -1,35 +1,47 @@
-from sqlalchemy import create_engine, MetaData
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
-from app.config import settings  # <— use centralized settings
-from typing import Optional
-from dotenv import load_dotenv
-from app.logging_config import get_logger
+from sqlalchemy.ext.declarative import declarative_base
 import os
 
-load_dotenv()
+from app.config import settings
+from app.logging_config import get_logger
+
 logger = get_logger(__name__)
-logger.info("📄 Environment variables loaded")
-
-# Normalize DATABASE_URL and prefer psycopg (v3)
-raw_url = settings.database_url or os.getenv("DATABASE_URL", "")
-db_url = raw_url.strip().strip("'").strip('"')
-if db_url.startswith("postgresql://"):
-    db_url = db_url.replace("postgresql://", "postgresql+psycopg://", 1)
-if not db_url:
-    raise RuntimeError("DATABASE_URL is not set")
-
-logger.info(f"Using DATABASE_URL={db_url}")
-engine = create_engine(db_url, pool_pre_ping=True)
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
-metadata = MetaData()
+
+def _normalize_db_url(u: str) -> str:
+    u = (u or "").strip().strip("'").strip('"')
+    if u.startswith("postgres://"):
+        u = "postgresql://" + u[len("postgres://"):]
+    if u.startswith("postgresql://"):
+        u = "postgresql+psycopg://" + u[len("postgresql://"):]
+    return u
+
+raw_url = settings.database_url or os.getenv("DATABASE_URL", "")
+db_url = _normalize_db_url(raw_url)
+logger.info(f"Using DATABASE_URL={db_url}")
+
+engine = create_engine(db_url, pool_pre_ping=True, future=True)
+
+# Avoid attribute expiration during response building
+SessionLocal = sessionmaker(
+    autocommit=False,
+    autoflush=False,
+    expire_on_commit=False,
+    bind=engine,
+)
 
 def get_db():
-    logger.debug("🔌 Creating database session")
     db = SessionLocal()
     try:
         yield db
     finally:
-        logger.debug("🔒 Closing database session")
         db.close()
+
+# Ensure pgvector is available on fresh DBs
+try:
+    with engine.begin() as conn:
+        conn.exec_driver_sql("CREATE EXTENSION IF NOT EXISTS vector")
+        logger.info("✅ pgvector extension is ready")
+except Exception as ex:
+    logger.warning(f"⚠️ Could not ensure pgvector extension: {ex}")

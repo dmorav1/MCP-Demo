@@ -3,64 +3,116 @@ from openai import AsyncOpenAI
 import json
 import logging
 import re
-from app.database import settings
+import os
+import asyncio
+from typing import List, Optional
 from app.logging_config import get_logger
+from app.config import settings
 
-# Get logger for this module
 logger = get_logger(__name__)
 
+# Local model loader (cached)
+try:
+    from sentence_transformers import SentenceTransformer  # requires numpy
+except Exception:
+    SentenceTransformer = None
+
+_local_model = None
+
+def _get_local_model(model_name: Optional[str] = None):
+    global _local_model
+    name = model_name or getattr(settings, "embedding_model", "all-MiniLM-L6-v2")
+    if _local_model is None:
+        if not SentenceTransformer:
+            raise RuntimeError("sentence-transformers is not installed")
+        _local_model = SentenceTransformer(name)
+        logger.info(f"Loaded local embedding model: {name}")
+    return _local_model
+
+def generate_embedding_local(texts: List[str]) -> List[List[float]]:
+    """
+    Synchronous local embedding generation using sentence-transformers.
+    Returns a Python list of lists (floats).
+    """
+    model = _get_local_model(getattr(settings, "embedding_model", "all-MiniLM-L6-v2"))
+    embeddings = model.encode(texts, normalize_embeddings=False)
+    # Fix: return the actual embeddings, not an undefined 'vecs'
+    try:
+        return embeddings.tolist()
+    except AttributeError:
+        # Already a list-like
+        return [list(v) for v in embeddings]
+
+def _resize(vec: List[float], target: int) -> List[float]:
+    n = len(vec)
+    if n == target:
+        return vec
+    if n < target:
+        return vec + [0.0] * (target - n)
+    return vec[:target]
 
 class EmbeddingService:
     def __init__(self):
-        # Use the settings to get the API key
-        api_key = settings.openai_api_key
-        logger.info(f"🔧 Initializing EmbeddingService with model: {settings.embedding_model}")
-        logger.info(f"📏 Embedding dimension: {settings.embedding_dimension}")
-        
-        if api_key:
-            self.client = AsyncOpenAI(api_key=api_key)
-            logger.info("✅ Using API key from settings")
-        else:
-            self.client = AsyncOpenAI()  # Will use OPENAI_API_KEY env var automatically
-            logger.info("🔑 Using API key from environment variable")
-            
-        self.model = settings.embedding_model
-        self.dimension = settings.embedding_dimension
+        # Safe defaults
+        self.provider = (getattr(settings, "embedding_provider", "local") or "local").lower()
+        self.model = getattr(settings, "embedding_model", "all-MiniLM-L6-v2")
+        self.dimension = int(getattr(settings, "embedding_dimension", 1536))
+        self.client = None
+
+        # OpenAI optional
+        try:
+            from openai import AsyncOpenAI  # type: ignore
+            self._AsyncOpenAI = AsyncOpenAI
+        except Exception:
+            self._AsyncOpenAI = None
+
+        if self.provider == "openai" and self._AsyncOpenAI:
+            import os
+            api_key = getattr(settings, "openai_api_key", None) or os.getenv("OPENAI_API_KEY")
+            if api_key:
+                self.client = self._AsyncOpenAI(api_key=api_key)
+            else:
+                logger.warning("OPENAI_API_KEY not set; using local embeddings instead")
+                self.provider = "local"
+
+        logger.info(f"EmbeddingService provider={self.provider} model={self.model} target_dim={self.dimension}")
 
     async def generate_embedding(self, text: str) -> List[float]:
-        """Generate embedding for a given text using OpenAI API"""
-        logger.debug(f"🔄 Generating embedding for text: {text[:50]}...")
+        if self.provider == "local":
+            try:
+                vec = (await asyncio.to_thread(generate_embedding_local, [text]))[0]
+                return _resize(vec, self.dimension)
+            except Exception as e:
+                logger.error(f"Local embedding error: {e}")
+                return [0.0] * self.dimension
+
+        # OpenAI path
         try:
-            response = await self.client.embeddings.create(
-                model=self.model,
-                input=text
-            )
-            embedding = response.data[0].embedding
-            logger.info(f"✅ Generated embedding with dimension: {len(embedding)}")
-            return embedding
+            resp = await self.client.embeddings.create(model=self.model, input=text)
+            return _resize(resp.data[0].embedding, self.dimension)
         except Exception as e:
-            logger.error(f"❌ Error generating embedding: {str(e)}")
-            # Return zero vector as fallback
-            fallback_vector = [0.0] * self.dimension
-            logger.warning(f"⚠️ Returning zero vector fallback with dimension: {len(fallback_vector)}")
-            return fallback_vector
+            logger.error(f"OpenAI embedding error: {e}")
+            return [0.0] * self.dimension
 
     async def generate_embeddings_batch(self, texts: List[str]) -> List[List[float]]:
-        """Generate embeddings for multiple texts"""
-        logger.info(f"🔄 Generating batch embeddings for {len(texts)} texts")
+        if self.provider == "local":
+            try:
+                vectors = await asyncio.to_thread(generate_embedding_local, texts)
+                resized = [_resize(v, self.dimension) for v in vectors]
+                logger.info(f"Generated {len(resized)} local embeddings (dim={self.dimension})")
+                return resized
+            except Exception as e:
+                logger.error(f"Local batch embedding error: {e}")
+                return [[0.0] * self.dimension for _ in texts]
+
+        # OpenAI path
         try:
-            response = await self.client.embeddings.create(
-                model=self.model,
-                input=texts
-            )
-            logger.info(f"✅ Generated {len(response.data)} embeddings successfully")
-            return [data.embedding for data in response.data]
+            resp = await self.client.embeddings.create(model=self.model, input=texts)
+            vectors = [d.embedding for d in resp.data]
+            return [_resize(v, self.dimension) for v in vectors]
         except Exception as e:
-            logger.error(f"❌ Error generating batch embeddings: {str(e)}")
-            # Return zero vectors as fallback
-            fallback_vectors = [[0.0] * self.dimension for _ in texts]
-            logger.warning(f"⚠️ Returning {len(fallback_vectors)} zero vector fallbacks")
-            return fallback_vectors
+            logger.error(f"OpenAI batch embedding error: {e}")
+            return [[0.0] * self.dimension for _ in texts]
 
 class ConversationProcessor:
     def __init__(self):
@@ -121,6 +173,7 @@ class ConversationProcessor:
         logger.debug(f"📋 Processing {len(messages)} messages")
         
         chunks = self.chunk_conversation(messages)
+        logger.info("Preparing chunks for ingestion")
         
         # Generate embeddings for all chunks
         chunk_texts = [chunk['chunk_text'] for chunk in chunks]
@@ -139,6 +192,7 @@ class ConversationProcessor:
         }
         
         logger.info(f"✅ Conversation processing completed: {len(chunks)} chunks with embeddings")
+        logger.info(f"Prepared {len(chunks)} chunks")
         return result
 
 class ContextFormatter:
