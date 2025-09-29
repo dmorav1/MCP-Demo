@@ -1,8 +1,10 @@
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 from sqlalchemy.orm import selectinload
 
 from app import models, schemas
+from app.services import EmbeddingService
 from app.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -10,6 +12,7 @@ logger = get_logger(__name__)
 class ConversationCRUD:
     def __init__(self, db: Session):
         self.db = db
+        self._embed = EmbeddingService()
 
     def get_conversations(self, skip: int = 0, limit: int = 100) -> List[models.Conversation]:
         logger.info(f"Fetching conversations skip={skip} limit={limit}")
@@ -50,3 +53,55 @@ class ConversationCRUD:
         self.db.delete(obj)
         self.db.commit()
         return True
+
+    async def search_conversations(self, query: str, top_k: int = 10) -> List[Dict[str, Any]]:
+        q = (query or "").strip()
+        if not q:
+            return []
+
+        # 1) Embed query (local model → 384, padded to 1536 by service)
+        qvec = await self._embed.generate_embedding(q)
+
+        # 2) Vector search (L2). Use <-> since your index uses vector_l2_ops.
+        sql = text("""
+            SELECT
+              ch.id              AS chunk_id,
+              ch.conversation_id AS conversation_id,
+              ch.order_index     AS order_index,
+              ch.chunk_text      AS chunk_text,
+              ch.author_name     AS author_name,
+              ch.author_type     AS author_type,
+              ch.timestamp       AS timestamp,
+              conv.scenario_title AS scenario_title,
+              conv.original_title AS original_title,
+              conv.url            AS url,
+              (ch.embedding <-> :qvec) AS score
+            FROM conversation_chunks ch
+            JOIN conversations conv ON conv.id = ch.conversation_id
+            ORDER BY ch.embedding <-> :qvec
+            LIMIT :k
+        """)
+        rows = self.db.execute(sql, {"qvec": qvec, "k": int(top_k)}).mappings().all()
+
+        results = []
+        for r in rows:
+            results.append({
+                "score": float(r["score"]),
+                "chunk": {
+                    "id": r["chunk_id"],
+                    "conversation_id": r["conversation_id"],
+                    "order_index": r["order_index"],
+                    "author_name": r["author_name"],
+                    "author_type": r["author_type"],
+                    "timestamp": r["timestamp"],
+                    "text": r["chunk_text"],
+                },
+                "conversation": {
+                    "id": r["conversation_id"],
+                    "scenario_title": r["scenario_title"],
+                    "original_title": r["original_title"],
+                    "url": r["url"],
+                }
+            })
+        logger.info(f"🔎 search '{q}' → {len(results)} hits")
+        return results
