@@ -21,16 +21,35 @@ services:
     ports:
       - "8000:8000"
     environment:
-      DATABASE_URL: postgresql://mcp_user:mcp_password@postgres:5432/mcp_db
-      OPENAI_API_KEY: ${OPENAI_API_KEY}
-      EMBEDDING_MODEL: text-embedding-ada-002
-      EMBEDDING_DIMENSION: 1536
+      DATABASE_URL: postgresql+psycopg://mcp_user:mcp_password@postgres:5432/mcp_db
+      EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-local}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-all-MiniLM-L6-v2}
+      EMBEDDING_DIMENSION: ${EMBEDDING_DIMENSION:-1536}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
     depends_on:
       postgres:
         condition: service_healthy
     volumes:
       - ./app:/app/app
     restart: unless-stopped
+    command: ["fastapi"]
+
+  mcp-server:
+    build: .
+    environment:
+      DATABASE_URL: postgresql+psycopg://mcp_user:mcp_password@postgres:5432/mcp_db
+      FASTAPI_BASE_URL: http://mcp-backend:8000
+      EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-openai}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-text-embedding-ada-002}
+      EMBEDDING_DIMENSION: ${EMBEDDING_DIMENSION:-1536}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+    depends_on:
+      mcp-backend:
+        condition: service_healthy
+    restart: unless-stopped
+    entrypoint: ["sleep", "infinity"]  # Override entrypoint to keep container running
+    profiles:
+      - mcp
 
 volumes:
   postgres_data:

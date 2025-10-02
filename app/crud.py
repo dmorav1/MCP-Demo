@@ -55,12 +55,19 @@ class ConversationCRUD:
         return True
 
     async def search_conversations(self, query: str, top_k: int = 10) -> List[Dict[str, Any]]:
+        logger.info(f"🔍 Starting search for query: '{query}', top_k: {top_k}")
         q = (query or "").strip()
         if not q:
             return []
 
         # 1) Embed query (local model → 384, padded to 1536 by service)
-        qvec = await self._embed.generate_embedding(q)
+        logger.info(f"🔍 Generating embedding for query...")
+        try:
+            qvec = await self._embed.generate_embedding(q)
+            logger.info(f"🔍 Generated embedding with {len(qvec)} dimensions")
+        except Exception as e:
+            logger.error(f"🔍 Error generating embedding: {e}")
+            raise
 
         # 2) Vector search (L2). Use <-> since your index uses vector_l2_ops.
         sql = text("""
@@ -75,13 +82,17 @@ class ConversationCRUD:
               conv.scenario_title AS scenario_title,
               conv.original_title AS original_title,
               conv.url            AS url,
-              (ch.embedding <-> :qvec) AS score
+              (ch.embedding <-> CAST(:qvec AS vector)) AS score
             FROM conversation_chunks ch
             JOIN conversations conv ON conv.id = ch.conversation_id
-            ORDER BY ch.embedding <-> :qvec
+            ORDER BY ch.embedding <-> CAST(:qvec AS vector)
             LIMIT :k
         """)
         rows = self.db.execute(sql, {"qvec": qvec, "k": int(top_k)}).mappings().all()
+        
+        logger.info(f"🔍 Query returned {len(rows)} rows")
+        if rows:
+            logger.info(f"🔍 First row keys: {list(rows[0].keys()) if rows else 'None'}")
 
         results = []
         for r in rows:
