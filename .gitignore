@@ -289,3 +289,17 @@ postgres_data/
 .pytest_cache/
 __pycache__/
 *.pyc
+
+.bmad-core/
+.cursor/
+.claude/
+.idea/
+.vscode/
+.history/
+.pytest_cache/
+__pycache__/
+*.pyc
+
+.cursor/
+.claude/
+.github/
