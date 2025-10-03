@@ -2,6 +2,14 @@
 
 # Development startup script with support for different modes
 
+# Load environment variables from .env file
+if [ -f .env ]; then
+    set -a && source .env && set +a
+    echo "✅ Environment variables loaded from .env"
+else
+    echo "⚠️  .env file not found. Will create from .env.example if available."
+fi
+
 # Default if no argument is provided
 MODE=${1:-all}
 
@@ -10,6 +18,9 @@ setup_env() {
     if [ ! -f .env ]; then
         echo "⚠️  .env file not found. Copying from .env.example..." >> setup.log
         cp .env.example .env
+        # Load the newly created .env file
+        set -a && source .env && set +a
+        echo "✅ Environment variables loaded from newly created .env" >> setup.log
     fi
 
     if [ ! -d ".venv" ]; then
@@ -262,6 +273,27 @@ run_inspector() {
     echo "⚠️  Keep this terminal open to maintain the connection" >> inspector.log
 }
 
+start_mcp_server_docker() {
+    echo "--- Starting MCP Server in Docker ---" >> server.log
+    
+    echo "🐳 Starting MCP server container..." >> server.log
+    docker-compose up -d mcp-server
+    
+    echo "⏳ Waiting for MCP server to be ready..." >> server.log
+    for i in {1..30}; do
+        sleep 1
+        if curl -sf "http://localhost:3000/health" >/dev/null 2>&1; then
+            echo "✅ MCP server is ready!" >> server.log
+            echo "🔌 MCP server available at: http://localhost:3000" >> server.log
+            return 0
+        fi
+        echo "MCP server not ready, waiting... ($i/30)" >> server.log
+    done
+    
+    echo "❌ MCP server failed to start within 30 seconds" >> server.log
+    return 1
+}
+
 
 # Main logic to select mode
 if [ "$MODE" == "setup" ]; then
@@ -271,9 +303,16 @@ elif [ "$MODE" == "run" ]; then
     run_server
 elif [ "$MODE" == "inspect" ]; then
     run_inspector
+elif [ "$MODE" == "docker-mcp" ]; then
+    setup_env
+    start_db
+    run_server
+    start_mcp_server_docker
 elif [ "$MODE" == "all" ]; then
     setup_env
-    start_db && run_server
+    start_db 
+    run_server
+    start_mcp_server_docker
 fi
 
 run_server

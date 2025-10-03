@@ -597,3 +597,55 @@ curl -s "http://localhost:8000/search?q=hello&top_k=3" | jq .
 - IVFFlat index speeds similarity queries; tune `lists` per data volume.
 - Use `selectinload` to eager-load chunks in list endpoints.
 - Session factory sets `expire_on_commit=False` to avoid stale attribute issues during response building.
+
+## MCP Server Docker Deployment
+
+### Running the MCP Server in Docker
+
+1. **Start all services including MCP server:**
+   ```bash
+   docker-compose up -d
+   ```
+
+2. **Verify MCP server is running:**
+   ```bash
+   curl http://localhost:3000/health
+   ```
+
+3. **Configure Claude Desktop:**
+   
+   **macOS/Linux:**
+   Copy the configuration to Claude Desktop config directory:
+   ```bash
+   mkdir -p ~/.config/Claude
+   cp claude_desktop_config.json ~/.config/Claude/config.json
+   ```
+
+   **Windows:**
+   Copy to `%APPDATA%\Claude\config.json`:
+   ```powershell
+   New-Item -Path "$env:APPDATA\Claude" -ItemType Directory -Force
+   Copy-Item claude_desktop_config_windows.json "$env:APPDATA\Claude\config.json"
+   ```
+
+4. **Restart Claude Desktop** to load the new configuration.
+
+5. **Test the connection:**
+   Open Claude Desktop and try asking: "Search for conversations about hello"
+
+### Troubleshooting Docker MCP Server
+
+**Connection refused:**
+- Ensure all containers are running: `docker-compose ps`
+- Check MCP server logs: `docker-compose logs mcp-server`
+- Verify port 3000 is not in use: `netstat -an | grep 3000`
+
+**SSE stream errors:**
+- Check network connectivity between containers
+- Verify FASTAPI_BASE_URL points to mcp-backend service
+- Review logs: `docker-compose logs -f mcp-server`
+
+**Claude Desktop not connecting:**
+- Verify config.json is in the correct location
+- Check that localhost:3000 is accessible from your machine
+- Restart Claude Desktop completely (quit and reopen)

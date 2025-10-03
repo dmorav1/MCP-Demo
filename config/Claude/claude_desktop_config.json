@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "conversational-data": {
+      "command": "curl",
+      "args": [
+        "-N",
+        "-H",
+        "Accept: text/event-stream",
+        "http://localhost:3000/sse"
+      ],
+      "env": {}
+    }
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "conversational-data": {
+      "command": "docker",
+      "args": [
+        "exec",
+        "-i",
+        "mcp-demo-mcp-server-1",
+        "python",
+        "run_mcp_server_standalone.py"
+      ],
+      "env": {}
+    }
+  }
+}

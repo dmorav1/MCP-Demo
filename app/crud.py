@@ -62,7 +62,7 @@ class ConversationCRUD:
         # 1) Embed query (local model → 384, padded to 1536 by service)
         qvec = await self._embed.generate_embedding(q)
 
-        # 2) Vector search (L2). Use <-> since your index uses vector_l2_ops.
+        # 2) Vector search (L2). Use <-> with proper casting for pgvector
         sql = text("""
             SELECT
               ch.id              AS chunk_id,
@@ -75,33 +75,31 @@ class ConversationCRUD:
               conv.scenario_title AS scenario_title,
               conv.original_title AS original_title,
               conv.url            AS url,
-              (ch.embedding <-> :qvec) AS score
+              conv.created_at     AS created_at,
+              (ch.embedding <-> CAST(:qvec AS vector)) AS score
             FROM conversation_chunks ch
             JOIN conversations conv ON conv.id = ch.conversation_id
-            ORDER BY ch.embedding <-> :qvec
+            WHERE ch.embedding IS NOT NULL
+            ORDER BY ch.embedding <-> CAST(:qvec AS vector)
             LIMIT :k
         """)
-        rows = self.db.execute(sql, {"qvec": qvec, "k": int(top_k)}).mappings().all()
+        rows = self.db.execute(sql, {"qvec": str(qvec), "k": int(top_k)}).mappings().all()
 
         results = []
         for r in rows:
             results.append({
-                "score": float(r["score"]),
-                "chunk": {
-                    "id": r["chunk_id"],
-                    "conversation_id": r["conversation_id"],
-                    "order_index": r["order_index"],
-                    "author_name": r["author_name"],
-                    "author_type": r["author_type"],
-                    "timestamp": r["timestamp"],
-                    "text": r["chunk_text"],
-                },
-                "conversation": {
-                    "id": r["conversation_id"],
-                    "scenario_title": r["scenario_title"],
-                    "original_title": r["original_title"],
-                    "url": r["url"],
-                }
+                "chunk_id": r["chunk_id"],
+                "conversation_id": r["conversation_id"],
+                "order_index": r["order_index"],
+                "chunk_text": r["chunk_text"],
+                "author_name": r["author_name"],
+                "author_type": r["author_type"],
+                "timestamp": r["timestamp"],
+                "scenario_title": r["scenario_title"],
+                "original_title": r["original_title"],
+                "url": r["url"],
+                "created_at": r["created_at"],
+                "relevance_score": float(r["score"])
             })
         logger.info(f"🔎 search '{q}' → {len(results)} hits")
         return results

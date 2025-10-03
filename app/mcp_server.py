@@ -19,8 +19,7 @@ FASTAPI_BASE_URL = os.getenv("FASTAPI_BASE_URL", "http://localhost:8000")
 
 # Initialize the MCP application
 mcp_app = FastMCP(
-    "Conversational Data Server",
-    description="Exposes conversation ingestion and search via MCP."
+    "Conversational Data Server"
 )
 
 
@@ -214,7 +213,6 @@ async def health_check(context: Context) -> dict:
         except Exception as e:
             await context.error(f"❌ [MCP] Error checking backend health: {str(e)}")
             raise Exception(f"Health check failed: {str(e)}")
-
 
 if __name__ == "__main__":
     mcp_app.run()
