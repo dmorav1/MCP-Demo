@@ -3,212 +3,207 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from typing import List
 import os
-import math
-import json
 
 from app import models, schemas, crud
-from app.database import engine, get_db
+from app.database import engine, get_db, test_connection
 from app.routers.ingest import router as ingest_router
 from app.services import ContextFormatter
 from app.logging_config import setup_logging, get_logger
 
-# Set up comprehensive logging
-log_level = os.getenv("LOG_LEVEL", "WARN")
-setup_logging(log_level)
+# Import chat gateway if it exists
+try:
+    from app.mcp_gateway import router as chat_router
+    CHAT_ROUTER_AVAILABLE = True
+except ImportError:
+    CHAT_ROUTER_AVAILABLE = False
+    chat_router = None
+
+# Setup logging first
+setup_logging()
 logger = get_logger(__name__)
 
-# Create database tables
-logger.info("🚀 Creating database tables...")
-models.Base.metadata.create_all(bind=engine)
-logger.info("✅ Database tables created successfully")
-
-# --- INITIALIZATION ---
 logger.info("🚀 Initializing FastAPI application...")
+
+# Create database tables
+try:
+    logger.info("📊 Creating database tables...")
+    models.Base.metadata.create_all(bind=engine)
+    logger.info("✅ Database tables created/verified")
+except Exception as e:
+    logger.error(f"❌ Failed to create database tables: {e}")
+    raise
+
+# Test database connection
+logger.info("🔍 Testing database connection...")
+if not test_connection():
+    logger.error("❌ Database connection test failed - application may not work correctly")
+else:
+    logger.info("✅ Database connection verified")
+
 app = FastAPI(
-    title="MCP Backend API",
-    description="Model Context Protocol Backend for Conversational Data",
+    title="MCP Conversational Data Server",
+    description="Ingest, search, and serve conversational data via REST and MCP protocol",
     version="1.0.0"
 )
 
-# Add CORS middleware
+# CORS configuration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Configure appropriately for production
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Mount routers once
+# Mount routers
 app.include_router(ingest_router, tags=["ingest"])
+if CHAT_ROUTER_AVAILABLE:
+    app.include_router(chat_router, tags=["chat"])
+    logger.info("✅ Chat gateway router mounted")
 
 logger.info("✅ FastAPI application initialized")
 
-# Export for tests
-fastapi_app = app
 
-
-def safe_json_encode(obj):
-    """
-    Custom JSON encoder that handles NaN and infinity values
-    """
-    def default(o):
-        if isinstance(o, float):
-            if math.isnan(o) or math.isinf(o):
-                return 0.0
-        return o
-    
-    return json.loads(json.dumps(obj, default=default))
-
-
-def convert_conversation_to_response(conversation: models.Conversation) -> schemas.ConversationResponse:
-    """
-    Convert a database Conversation model to ConversationResponse schema (without embeddings)
-    """
-    return schemas.ConversationResponse(
-        id=conversation.id,
-        scenario_title=conversation.scenario_title,
-        original_title=conversation.original_title,
-        url=conversation.url,
-        created_at=conversation.created_at,
-        chunks=[
-            schemas.ConversationChunkResponse(
-                id=chunk.id,
-                conversation_id=chunk.conversation_id,
-                order_index=chunk.order_index,
-                chunk_text=chunk.chunk_text,
-                author_name=chunk.author_name,
-                author_type=chunk.author_type,
-                timestamp=chunk.timestamp
-            ) for chunk in conversation.chunks
-        ]
-    )
-
-
-@app.get("/")
-async def root():
-    """
-    Root endpoint
-    """
-    logger.info("📍 Root endpoint accessed")
+@app.get("/", tags=["root"])
+async def read_root():
+    """Root endpoint with API information."""
     return {
-        "message": "MCP Backend API",
+        "message": "MCP Conversational Data Server",
         "version": "1.0.0",
         "endpoints": {
-            "ingest": "POST /ingest - Ingest a new conversation",
-            "search": "GET /search - Search conversations",
-            "conversations": "GET /conversations - List all conversations",
-            "conversation": "GET /conversations/{id} - Get a specific conversation"
+            "health": "/health",
+            "docs": "/docs",
+            "ingest": "/ingest",
+            "search": "/search",
+            "conversations": "/conversations",
+            "chat": "/chat/ask" if CHAT_ROUTER_AVAILABLE else "not available"
         }
     }
 
-@app.get("/search", response_model=schemas.SearchResponseNew)
+
+@app.get("/health", tags=["health"])
+async def health_check(db: Session = Depends(get_db)):
+    """
+    Health check endpoint.
+    Returns service status and database connectivity.
+    """
+    try:
+        # Test database query
+        from sqlalchemy import text
+        db.execute(text("SELECT 1"))
+        db_status = "healthy"
+        
+        # Count conversations
+        conversation_count = db.query(models.Conversation).count()
+        
+        return {
+            "status": "healthy",
+            "service": "mcp-conversational-data-server",
+            "database": db_status,
+            "conversation_count": conversation_count,
+            "embedding_provider": os.getenv("EMBEDDING_PROVIDER", "local"),
+            "embedding_dimension": int(os.getenv("EMBEDDING_DIMENSION", 1536)),
+            "chat_gateway": "available" if CHAT_ROUTER_AVAILABLE else "not available"
+        }
+    except Exception as e:
+        logger.error(f"❌ Health check failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Service unhealthy: {str(e)}"
+        )
+
+
+@app.get("/search", response_model=schemas.SearchResponse, tags=["search"])
 async def search_conversations(
-    q: str = Query(..., description="Search query string"),
+    q: str = Query(..., description="Search query"),
     top_k: int = Query(5, ge=1, le=50, description="Number of results to return"),
     db: Session = Depends(get_db)
 ):
     """
-    Search for relevant conversations using semantic similarity.
-    
-    The search query is converted to a vector embedding and compared against
-    stored conversation chunks using cosine similarity.
+    Search for relevant conversation chunks using vector similarity.
+    Returns chunks ranked by relevance with metadata.
     """
-    logger.info(f"🔍 Searching conversations with query: '{q}' (top_k={top_k})")
+    logger.info(f"🔍 Search request: query='{q}', top_k={top_k}")
+    
     try:
-        conversation_crud = crud.ConversationCRUD(db)
-        search_results = await conversation_crud.search_conversations(q, top_k)
-        logger.info(f"🎯 Found {len(search_results)} search results")
+        # Perform search
+        results = await crud.search_conversations(db, query=q, top_k=top_k)
         
-        # Format results using ContextFormatter
-        formatted_results = ContextFormatter.format_search_results(search_results, q)
+        logger.info(f"✅ Found {len(results)} results")
         
-        response = schemas.SearchResponseNew(
-            results=[
-                schemas.SearchResultResponse(
-                    conversation=schemas.ConversationResponse(
-                        id=result['conversation_id'],
-                        scenario_title=result['scenario_title'],
-                        original_title=result['original_title'],
-                        url=result['url'],
-                        created_at=result['created_at'],
-                        chunks=[]
-                    ),
-                    relevance_score=result['relevance_score'],
-                    matched_chunks=[
-                        schemas.ConversationChunkResponse(
-                            id=result['chunk_id'],
-                            conversation_id=result['conversation_id'],
-                            order_index=result['order_index'],
-                            chunk_text=result['chunk_text'],
-                            author_name=result['author_name'],
-                            author_type=result['author_type'],
-                            timestamp=result['timestamp']
-                        )
-                    ]
-                ) for result in search_results
-            ],
+        return schemas.SearchResponse(
             query=q,
-            total_results=len(search_results)
+            results=results,
+            total_results=len(results)
         )
-        logger.info(f"✅ Search completed successfully for query: '{q}'")
-        return response
+        
     except Exception as e:
-        logger.error(f"❌ Error searching conversations: {str(e)}")
+        logger.error(f"❌ Search failed: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error searching conversations: {str(e)}"
+            detail=f"Search failed: {str(e)}"
         )
 
-@app.get("/conversations", response_model=List[schemas.ConversationResponse])
-def list_conversations(
-    skip: int = Query(0, ge=0, description="Number of conversations to skip"),
-    limit: int = Query(100, ge=1, le=1000, description="Maximum number of conversations to return"),
+
+@app.get("/conversations", response_model=List[schemas.ConversationResponse], tags=["conversations"])
+async def list_conversations(
+    skip: int = Query(0, ge=0, description="Number of records to skip"),
+    limit: int = Query(50, ge=1, le=100, description="Number of records to return"),
     db: Session = Depends(get_db)
 ):
     """
-    Get all conversations with pagination.
+    List all conversations with pagination.
+    Returns conversation metadata and statistics.
     """
-    logger.info(f"📋 Fetching conversations (skip={skip}, limit={limit})")
+    logger.info(f"📋 List conversations: skip={skip}, limit={limit}")
+    
     try:
-        conversation_crud = crud.ConversationCRUD(db)
-        conversations = conversation_crud.get_conversations(skip=skip, limit=limit)
-        logger.info(f"Returned {len(conversations)} conversations")
-        return [convert_conversation_to_response(conv) for conv in conversations]
+        conversations = crud.get_conversations(db, skip=skip, limit=limit)
+        
+        logger.info(f"✅ Retrieved {len(conversations)} conversations")
+        return conversations
+        
     except Exception as e:
-        logger.error(f"Error retrieving conversations: {e}")
-        raise HTTPException(status_code=500, detail="Failed to retrieve conversations")
+        logger.error(f"❌ Failed to list conversations: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve conversations: {str(e)}"
+        )
 
-@app.get("/conversations/{conversation_id}", response_model=schemas.ConversationResponse)
+
+@app.get("/conversations/{conversation_id}", response_model=schemas.ConversationResponse, tags=["conversations"])
 async def get_conversation(
     conversation_id: int,
     db: Session = Depends(get_db)
 ):
     """
-    Get a specific conversation by ID.
+    Get a specific conversation by ID with all chunks.
     """
-    logger.info(f"🔍 Fetching conversation with ID: {conversation_id}")
+    logger.info(f"🔍 Get conversation: id={conversation_id}")
+    
     try:
-        conversation_crud = crud.ConversationCRUD(db)
-        conversation = conversation_crud.get_conversation(conversation_id)
-        if conversation is None:
-            logger.warning(f"⚠️ Conversation not found: {conversation_id}")
+        conversation = crud.get_conversation(db, conversation_id)
+        
+        if not conversation:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Conversation not found"
+                detail=f"Conversation {conversation_id} not found"
             )
-        logger.info(f"✅ Retrieved conversation: {conversation.scenario_title}")
-        return convert_conversation_to_response(conversation)
+        
+        logger.info(f"✅ Retrieved conversation {conversation_id}")
+        return conversation
+        
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"❌ Error retrieving conversation: {str(e)}")
+        logger.error(f"❌ Failed to get conversation: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error retrieving conversation: {str(e)}"
+            detail=f"Failed to retrieve conversation: {str(e)}"
         )
 
-@app.delete("/conversations/{conversation_id}")
+
+@app.delete("/conversations/{conversation_id}", tags=["conversations"])
 async def delete_conversation(
     conversation_id: int,
     db: Session = Depends(get_db)
@@ -216,52 +211,31 @@ async def delete_conversation(
     """
     Delete a conversation and all its chunks.
     """
-    logger.info(f"🗑️ Deleting conversation with ID: {conversation_id}")
+    logger.info(f"🗑️ Delete conversation: id={conversation_id}")
+    
     try:
-        conversation_crud = crud.ConversationCRUD(db)
-        success = conversation_crud.delete_conversation(conversation_id)
-        if not success:
-            logger.warning(f"⚠️ Conversation not found for deletion: {conversation_id}")
+        result = crud.delete_conversation(db, conversation_id)
+        
+        if not result:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Conversation not found"
+                detail=f"Conversation {conversation_id} not found"
             )
-        logger.info(f"✅ Successfully deleted conversation: {conversation_id}")
-        return {"message": "Conversation deleted successfully"}
+        
+        logger.info(f"✅ Deleted conversation {conversation_id}")
+        return {"message": f"Conversation {conversation_id} deleted successfully"}
+        
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"❌ Error deleting conversation: {str(e)}")
+        logger.error(f"❌ Failed to delete conversation: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error deleting conversation: {str(e)}"
+            detail=f"Failed to delete conversation: {str(e)}"
         )
 
-@app.get("/health")
-async def health_check():
-    """
-    Health check endpoint
-    """
-    logger.info("💚 Health check endpoint accessed")
-    return {"status": "healthy", "service": "mcp-backend"}
 
 if __name__ == "__main__":
     import uvicorn
-    
-    # Get port from environment or use default
-    port = int(os.getenv("UVICORN_PORT", "8000"))
-    
-    logger.info("🚀 Starting FastAPI server...")
-    logger.info(f"   - HTTP API running on http://0.0.0.0:{port}")
-    logger.info("📖 API Docs: http://localhost:{}/docs".format(port))
-    logger.info("🏥 Health Check: http://localhost:{}/health".format(port))
-    
-    try:
-        uvicorn.run(
-            app,
-            host="0.0.0.0",
-            port=port
-        )
-    except KeyboardInterrupt:
-        logger.info("🛑 FastAPI server shutdown initiated by user.")
-        logger.info("👋 MCP Backend API stopped")
+    logger.info("🚀 Starting server with uvicorn...")
+    uvicorn.run(app, host="0.0.0.0", port=8000)

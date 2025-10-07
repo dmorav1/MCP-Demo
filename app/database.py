@@ -1,47 +1,93 @@
-from sqlalchemy import create_engine, text
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.ext.declarative import declarative_base
+"""
+Database configuration and session management.
+Uses psycopg 3 with SQLAlchemy 2.0+ for PostgreSQL + pgvector support.
+"""
 import os
+from sqlalchemy import create_engine, text
+from sqlalchemy.orm import sessionmaker, declarative_base
+from dotenv import load_dotenv
 
-from app.config import settings
 from app.logging_config import get_logger
 
 logger = get_logger(__name__)
-Base = declarative_base()
 
-def _normalize_db_url(u: str) -> str:
-    u = (u or "").strip().strip("'").strip('"')
-    if u.startswith("postgres://"):
-        u = "postgresql://" + u[len("postgres://"):]
-    if u.startswith("postgresql://"):
-        u = "postgresql+psycopg://" + u[len("postgresql://"):]
-    return u
+# Load environment variables
+load_dotenv()
 
-raw_url = settings.database_url or os.getenv("DATABASE_URL", "")
-db_url = _normalize_db_url(raw_url)
-logger.info(f"Using DATABASE_URL={db_url}")
+# Get database URL from environment
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    "postgresql+psycopg://mcp_user:mcp_password@localhost:5432/mcp_db"
+)
 
-engine = create_engine(db_url, pool_pre_ping=True, future=True)
+# Validate URL format for psycopg3
+if DATABASE_URL.startswith("postgresql://"):
+    logger.warning("⚠️ DATABASE_URL uses 'postgresql://' - converting to 'postgresql+psycopg://'")
+    DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+psycopg://", 1)
 
-# Avoid attribute expiration during response building
+logger.info(f"🔗 Connecting to database: {DATABASE_URL.split('@')[1] if '@' in DATABASE_URL else 'localhost'}")
+
+# Create engine with connection pooling
+engine = create_engine(
+    DATABASE_URL,
+    pool_pre_ping=True,  # Verify connections before use
+    pool_size=10,
+    max_overflow=20,
+    echo=False,  # Set to True for SQL query logging
+    future=True  # SQLAlchemy 2.0 style
+)
+
+# Create sessionmaker with expire_on_commit=False for better performance
 SessionLocal = sessionmaker(
     autocommit=False,
     autoflush=False,
-    expire_on_commit=False,
     bind=engine,
+    expire_on_commit=False  # Keep objects usable after commit
 )
 
+# Base class for models
+Base = declarative_base()
+
+
 def get_db():
+    """
+    Dependency function for FastAPI to get database sessions.
+    Yields a session and ensures cleanup.
+    """
     db = SessionLocal()
     try:
         yield db
     finally:
         db.close()
 
-# Ensure pgvector is available on fresh DBs
-try:
-    with engine.begin() as conn:
-        conn.exec_driver_sql("CREATE EXTENSION IF NOT EXISTS vector")
-        logger.info("✅ pgvector extension is ready")
-except Exception as ex:
-    logger.warning(f"⚠️ Could not ensure pgvector extension: {ex}")
+
+def test_connection():
+    """
+    Test database connection and pgvector extension.
+    Returns True if connection is successful, False otherwise.
+    """
+    try:
+        with engine.connect() as connection:
+            # Test basic connectivity
+            result = connection.execute(text("SELECT version();"))
+            version = result.fetchone()[0]
+            logger.info(f"✅ Database connected: {version[:50]}...")
+            
+            # Test pgvector extension
+            result = connection.execute(text("SELECT * FROM pg_extension WHERE extname = 'vector';"))
+            if result.fetchone():
+                logger.info("✅ pgvector extension is installed")
+            else:
+                logger.warning("⚠️ pgvector extension not found")
+            
+            connection.commit()
+            return True
+            
+    except Exception as e:
+        logger.error(f"❌ Database connection failed: {e}")
+        return False
+
+
+# Test connection on import
+if __name__ != "__main__":
+    test_connection()
