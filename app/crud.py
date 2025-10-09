@@ -74,18 +74,18 @@ class ConversationCRUD:
         # 2) Vector search (L2). Use <-> with proper casting for pgvector
         sql = text("""
             SELECT
-              ch.id              AS chunk_id,
-              ch.conversation_id AS conversation_id,
-              ch.order_index     AS order_index,
-              ch.chunk_text      AS chunk_text,
-              ch.author_name     AS author_name,
-              ch.author_type     AS author_type,
-              ch.timestamp       AS timestamp,
-              conv.scenario_title AS scenario_title,
-              conv.original_title AS original_title,
-              conv.url            AS url,
-              conv.created_at     AS created_at,
-              (ch.embedding <-> CAST(:qvec AS vector)) AS score
+                ch.id              AS id,
+                ch.conversation_id AS conversation_id,
+                ch.order_index     AS order_index,
+                ch.chunk_text      AS chunk_text,
+                ch.author_name     AS author_name,
+                ch.author_type     AS author_type,
+                ch.timestamp       AS timestamp,
+                conv.scenario_title AS scenario_title,
+                conv.original_title AS original_title,
+                conv.url            AS url,
+                conv.created_at     AS created_at,
+                (ch.embedding <-> CAST(:qvec AS vector)) AS score
             FROM conversation_chunks ch
             JOIN conversations conv ON conv.id = ch.conversation_id
             WHERE ch.embedding IS NOT NULL
@@ -97,7 +97,7 @@ class ConversationCRUD:
         results = []
         for r in rows:
             results.append({
-                "chunk_id": r["chunk_id"],
+                "id": r["id"],
                 "conversation_id": r["conversation_id"],
                 "order_index": r["order_index"],
                 "chunk_text": r["chunk_text"],
@@ -139,19 +139,19 @@ class ConversationCRUD:
             # Create chunks
             for idx, chunk_data in enumerate(chunks_data):
                 chunk = models.ConversationChunk(
-                    conversation_id=conversation.conversation_id,
+                    conversation_id=conversation.id,
                     order_index=idx,
-                    content=chunk_data["content"],
-                    author_name=chunk_data["author_name"],
+                    chunk_text=chunk_data["content"],
+                    author_name=chunk_data.get("author_name"),
                     author_type=chunk_data.get("author_type", "human"),
-                    embedding=chunk_data["embedding"]
+                    embedding=chunk_data.get("embedding")
                 )
                 self.db.add(chunk)
             
             self.db.commit()
             self.db.refresh(conversation)
             
-            logger.info(f"✅ Created conversation {conversation.conversation_id}")
+            logger.info(f"✅ Created conversation {conversation.id}")
             return conversation
             
         except Exception as e:
@@ -175,7 +175,7 @@ class ConversationCRUD:
             conversation = (
                 self.db.query(models.Conversation)
                 .options(selectinload(models.Conversation.chunks))
-                .filter(models.Conversation.conversation_id == conversation_id)
+                .filter(models.Conversation.id == conversation_id)
                 .first()
             )
             
@@ -184,24 +184,22 @@ class ConversationCRUD:
                 return None
             
             # Convert to response schema
-            chunks = [
-                schemas.ChunkResponse(
-                    chunk_id=chunk.chunk_id,
+            chunks = []
+            for chunk in sorted(conversation.chunks, key=lambda c: c.order_index):
+                chunks.append(schemas.ConversationChunkResponse(
+                    id=chunk.id,
                     conversation_id=chunk.conversation_id,
                     order_index=chunk.order_index,
-                    content=chunk.content,
+                    chunk_text=chunk.chunk_text,
                     author_name=chunk.author_name,
-                    author_type=chunk.author_type
-                )
-                for chunk in sorted(conversation.chunks, key=lambda c: c.order_index)
-            ]
+                    author_type=chunk.author_type,
+                    timestamp=chunk.timestamp
+                ))
             
             response = schemas.ConversationResponse(
-                conversation_id=conversation.conversation_id,
+                id=conversation.id,
                 scenario_title=conversation.scenario_title,
                 created_at=conversation.created_at,
-                updated_at=conversation.updated_at,
-                total_chunks=len(chunks),
                 chunks=chunks
             )
             
@@ -241,25 +239,22 @@ class ConversationCRUD:
             
             response = []
             for conv in conversations:
-                chunks = [
-                    schemas.ChunkResponse(
-                        chunk_id=chunk.chunk_id,
+                chunk_responses = []
+                for chunk in sorted(conv.chunks, key=lambda c: c.order_index):
+                    chunk_responses.append(schemas.ConversationChunkResponse(
+                        id=chunk.id,
                         conversation_id=chunk.conversation_id,
                         order_index=chunk.order_index,
-                        content=chunk.content,
+                        chunk_text=chunk.chunk_text,
                         author_name=chunk.author_name,
-                        author_type=chunk.author_type
-                    )
-                    for chunk in sorted(conv.chunks, key=lambda c: c.order_index)
-                ]
-                
+                        author_type=chunk.author_type,
+                        timestamp=chunk.timestamp
+                    ))
                 response.append(schemas.ConversationResponse(
-                    conversation_id=conv.conversation_id,
+                    id=conv.id,
                     scenario_title=conv.scenario_title,
                     created_at=conv.created_at,
-                    updated_at=conv.updated_at,
-                    total_chunks=len(chunks),
-                    chunks=chunks
+                    chunks=chunk_responses
                 ))
             
             logger.info(f"✅ Retrieved {len(response)} conversations")
@@ -284,7 +279,7 @@ class ConversationCRUD:
         try:
             conversation = (
                 self.db.query(models.Conversation)
-                .filter(models.Conversation.conversation_id == conversation_id)
+                .filter(models.Conversation.id == conversation_id)
                 .first()
             )
             
@@ -367,19 +362,9 @@ async def search_conversations(
     query: str,
     top_k: int = 5
 ) -> List[schemas.SearchResult]:
-    """
-    Search conversations using text query (generates embedding internally).
-    Legacy wrapper around ConversationCRUD.
-    """
-    from app.services import EmbeddingService
-    
-    # Generate embedding for query
-    embedding_service = EmbeddingService()
-    query_embedding = await embedding_service.generate_embedding(query)
-    
-    # Perform search
-    crud = ConversationCRUD(db)
-    return await crud.search_by_embedding(query_embedding, top_k)
+    """Wrapper now delegates to ConversationCRUD.search_conversations which handles embedding + vector SQL."""
+    crud_instance = ConversationCRUD(db)
+    return await crud_instance.search_conversations(query, top_k)
 
 
 def get_conversation(db: Session, conversation_id: int) -> Optional[schemas.ConversationResponse]:

@@ -1,6 +1,9 @@
 #!/bin/bash
 
 # Development startup script with support for different modes
+# Hardened with strict bash options for early failure detection
+set -euo pipefail
+IFS=$'\n\t'
 
 # Load environment variables from .env file
 if [ -f .env ]; then
@@ -29,7 +32,20 @@ setup_env() {
     fi
 
     echo "📦 Syncing dependencies..." >> setup.log
-    uv pip install -q -r requirements.txt
+    # Support a slim dependency mode when building locally similar to Dockerfile arg
+    if [ "${SLIM_EMBEDDINGS:-1}" = "1" ]; then
+        echo "⚖️  Using SLIM_EMBEDDINGS mode (removing heavy ML deps)" >> setup.log
+        grep -v -E '^(torch==|scikit-learn==|scipy==|transformers==|sentence-transformers==)' requirements.txt > requirements.slim || true
+        if [ -s requirements.slim ]; then
+            echo 'fastembed==0.3.3' >> requirements.slim
+            uv pip install -q -r requirements.slim
+        else
+            # Fallback to full requirements if filter failed
+            uv pip install -q -r requirements.txt
+        fi
+    else
+        uv pip install -q -r requirements.txt
+    fi
 }
 
 start_db() {
@@ -310,9 +326,10 @@ elif [ "$MODE" == "docker-mcp" ]; then
     start_mcp_server_docker
 elif [ "$MODE" == "all" ]; then
     setup_env
-    start_db 
+    start_db
     run_server
     start_mcp_server_docker
+else
+    echo "❌ Unknown mode: $MODE" >&2
+    exit 2
 fi
-
-run_server

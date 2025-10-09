@@ -80,5 +80,6 @@ async def ingest_conversation(payload: ConversationIn, db: Session = Depends(get
         raise
     except Exception as e:
         db.rollback()
-        logger.error(f"❌ Error ingesting conversation: {e}")
+        # Use logger.exception to include traceback for debugging
+        logger.exception(f"❌ Error ingesting conversation: {e}")
         raise HTTPException(status_code=500, detail="Failed to ingest conversation")

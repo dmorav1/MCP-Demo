@@ -113,7 +113,7 @@ async def health_check(db: Session = Depends(get_db)):
         )
 
 
-@app.get("/search", response_model=schemas.SearchResponse, tags=["search"])
+@app.get("/search", response_model=schemas.ChunkSearchResponse, tags=["search"])
 async def search_conversations(
     q: str = Query(..., description="Search query"),
     top_k: int = Query(5, ge=1, le=50, description="Number of results to return"),
@@ -128,13 +128,12 @@ async def search_conversations(
     try:
         # Perform search
         results = await crud.search_conversations(db, query=q, top_k=top_k)
-        
         logger.info(f"✅ Found {len(results)} results")
-        
-        return schemas.SearchResponse(
+        chunk_results = [schemas.ChunkSearchResult(**r) for r in results]
+        return schemas.ChunkSearchResponse(
             query=q,
-            results=results,
-            total_results=len(results)
+            results=chunk_results,
+            total_results=len(chunk_results)
         )
         
     except Exception as e:

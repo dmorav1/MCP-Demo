@@ -20,8 +20,28 @@ router = APIRouter(prefix="/chat", tags=["chat"])
 
 # Configuration
 FASTAPI_BASE_URL = os.getenv("FASTAPI_BASE_URL", "http://localhost:8000")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-openai_client = AsyncOpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
+CHAT_MODEL = os.getenv("CHAT_MODEL", os.getenv("OPENAI_CHAT_MODEL", "gpt-4o-mini"))
+
+# Lazy OpenAI client initialization so that adding the key after container start
+# (e.g. `docker compose exec mcp-backend bash` then exporting) or injecting via
+# updated environment + reload works without needing a new image build.
+_cached_openai_key: Optional[str] = None
+_cached_openai_client: Optional[AsyncOpenAI] = None
+
+def get_openai_client() -> Optional[AsyncOpenAI]:
+    global _cached_openai_client, _cached_openai_key
+    current_key = os.getenv("OPENAI_API_KEY")
+    if not current_key:
+        return None
+    if _cached_openai_client is None or current_key != _cached_openai_key:
+        try:
+            _cached_openai_client = AsyncOpenAI(api_key=current_key)
+            _cached_openai_key = current_key
+            logger.info("✅ Initialized OpenAI client (chat model=%s)" % CHAT_MODEL)
+        except Exception as e:
+            logger.error(f"❌ Failed to initialize OpenAI client: {e}")
+            _cached_openai_client = None
+    return _cached_openai_client
 
 
 class ChatMessage(BaseModel):
@@ -38,8 +58,15 @@ class ChatResponse(BaseModel):
 
 
 async def search_mcp_context(query: str, top_k: int = 5) -> List[Dict[str, Any]]:
-    """
-    Search MCP backend for relevant conversation context
+    """Search MCP backend for relevant conversation context and normalize shape for frontend.
+
+    The /search endpoint returns chunk-level results with raw distance (stored in 'relevance_score').
+    Frontend expects:
+      - conversation_id
+      - scenario_title
+      - matched_content
+      - author_info { name, type }
+      - relevance_score (similarity 0..1)
     """
     try:
         async with httpx.AsyncClient() as client:
@@ -48,11 +75,25 @@ async def search_mcp_context(query: str, top_k: int = 5) -> List[Dict[str, Any]]
                 params={"q": query, "top_k": top_k}
             )
             response.raise_for_status()
-            
-            result = response.json()
-            logger.info(f"🔍 Found {len(result.get('results', []))} context items for query: '{query}'")
-            return result.get("results", [])
-            
+            raw = response.json()
+            raw_results = raw.get("results", [])
+            normalized: List[Dict[str, Any]] = []
+            for r in raw_results:
+                # Original relevance_score is currently L2 distance. Convert to similarity.
+                distance = float(r.get("relevance_score", 0.0) or 0.0)
+                similarity = 1.0 / (1.0 + distance)  # in (0,1]
+                normalized.append({
+                    "conversation_id": r.get("conversation_id"),
+                    "scenario_title": r.get("scenario_title") or "Unknown",
+                    "matched_content": (r.get("chunk_text") or "")[:800],
+                    "author_info": {
+                        "name": r.get("author_name") or "Unknown",
+                        "type": r.get("author_type") or "unknown"
+                    },
+                    "relevance_score": similarity
+                })
+            logger.info(f"🔍 Context mapping produced {len(normalized)} items for query='{query}'")
+            return normalized
     except Exception as e:
         logger.error(f"❌ Error searching MCP context: {e}")
         return []
@@ -66,8 +107,18 @@ async def generate_llm_response(
     """
     Generate LLM response augmented with MCP context
     """
-    if not openai_client:
-        raise HTTPException(status_code=500, detail="OpenAI API key not configured")
+    client = get_openai_client()
+    if not client:
+        # Fallback: extract answer heuristically from top context
+        if not context:
+            return ("No OpenAI key configured and no relevant context found. "
+                    "Please configure OPENAI_API_KEY for LLM answers or ingest more data.")
+        summary_lines = []
+        for i, ctx in enumerate(context[:3]):
+            snippet = ctx['matched_content'][:160].replace('\n', ' ')
+            summary_lines.append(f"{i+1}. [{ctx['scenario_title']}] {snippet}...")
+        return ("(Fallback answer) Based on similar historical context:\n" + "\n".join(summary_lines) +
+                "\n\nProvide additional details to refine the answer.")
     
     # Build context prompt from MCP search results
     context_text = "\n\n".join([
@@ -98,8 +149,8 @@ Use this context to provide informed, accurate answers. If the context contains 
     
     try:
         logger.info(f"🤖 Generating LLM response for: '{user_question}'")
-        response = await openai_client.chat.completions.create(
-            model="gpt-4-turbo-preview",
+        response = await client.chat.completions.create(
+            model=CHAT_MODEL,
             messages=messages,
             temperature=0.7,
             max_tokens=800
@@ -110,36 +161,35 @@ Use this context to provide informed, accurate answers. If the context contains 
         return answer
         
     except Exception as e:
+        # Graceful fallback: log and return context-derived summary instead of failing hard
         logger.error(f"❌ Error generating LLM response: {e}")
-        raise HTTPException(status_code=500, detail=f"LLM generation failed: {str(e)}")
+        if context:
+            summary = []
+            for i, ctx in enumerate(context[:3]):
+                snippet = ctx['matched_content'][:160].replace('\n', ' ')
+                summary.append(f"{i+1}. [{ctx['scenario_title']}] {snippet}...")
+            return (
+                "(Fallback answer due to LLM error) Related context snippets:\n" +
+                "\n".join(summary) +
+                f"\n\nOriginal question: {user_question}\nError: {e}" )
+        return (
+            "(Fallback answer) LLM unavailable and no context found. "
+            "Please configure OPENAI_API_KEY or ingest more data." )
 
 
 @router.post("/ask", response_model=ChatResponse)
 async def ask_question(message: ChatMessage):
-    """
-    Ask a question and get an LLM response augmented with MCP context
-    
-    This endpoint:
-    1. Searches the MCP backend for relevant historical conversations
-    2. Uses those conversations as context for the LLM
-    3. Generates an informed response
-    """
+    """Question answering endpoint with graceful fallback when no OpenAI key is configured."""
     logger.info(f"📥 Received question: '{message.content}'")
-    
-    # Step 1: Search for relevant context
+    # Step 1: Retrieve context
     context = await search_mcp_context(message.content, top_k=5)
-    
-    # Step 2: Generate LLM response with context
+    # Step 2: Answer generation (LLM or fallback)
     answer = await generate_llm_response(
         message.content,
         context,
         message.conversation_history
     )
-    
-    return ChatResponse(
-        answer=answer,
-        context_used=context
-    )
+    return ChatResponse(answer=answer, context_used=context)
 
 
 @router.websocket("/ws")
@@ -169,7 +219,8 @@ async def websocket_chat(websocket: WebSocket):
             })
             
             # Generate streaming response
-            if openai_client:
+            client = get_openai_client()
+            if client:
                 # Build messages (same as ask_question)
                 context_text = "\n\n".join([
                     f"**Context {i+1}**: {ctx['matched_content'][:200]}..."
@@ -188,8 +239,8 @@ Provide helpful, informed answers based on this context."""
                 messages.append({"role": "user", "content": question})
                 
                 # Stream response
-                stream = await openai_client.chat.completions.create(
-                    model="gpt-4-turbo-preview",
+                stream = await client.chat.completions.create(
+                    model=CHAT_MODEL,
                     messages=messages,
                     temperature=0.7,
                     stream=True
@@ -253,6 +304,6 @@ async def chat_health_check():
     return {
         "status": "healthy",
         "service": "mcp-chat-gateway",
-        "openai_configured": openai_client is not None,
+        "openai_configured": get_openai_client() is not None,
         "mcp_backend": FASTAPI_BASE_URL
     }

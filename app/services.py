@@ -11,6 +11,14 @@ from app.config import settings
 
 logger = get_logger(__name__)
 
+# Attempt optional fastembed import for slim mode
+FASTEMBED_AVAILABLE = False
+try:
+    from fastembed import TextEmbedding
+    FASTEMBED_AVAILABLE = True
+except Exception:
+    pass
+
 # Local model loader (cached)
 try:
     from sentence_transformers import SentenceTransformer  # requires numpy
@@ -18,6 +26,7 @@ except Exception:
     SentenceTransformer = None
 
 _local_model = None
+_fastembed_model = None
 
 def _get_local_model(model_name: Optional[str] = None):
     global _local_model
@@ -28,6 +37,15 @@ def _get_local_model(model_name: Optional[str] = None):
         _local_model = SentenceTransformer(name)
         logger.info(f"Loaded local embedding model: {name}")
     return _local_model
+
+def _get_fastembed_model():
+    global _fastembed_model
+    if _fastembed_model is None:
+        if not FASTEMBED_AVAILABLE:
+            raise RuntimeError("fastembed not installed")
+        _fastembed_model = TextEmbedding()
+        logger.info("Loaded fastembed TextEmbedding model")
+    return _fastembed_model
 
 def generate_embedding_local(texts: List[str]) -> List[List[float]]:
     """
@@ -42,6 +60,11 @@ def generate_embedding_local(texts: List[str]) -> List[List[float]]:
     except AttributeError:
         # Already a list-like
         return [list(v) for v in embeddings]
+
+def generate_embedding_fastembed(texts: List[str]) -> List[List[float]]:
+    model = _get_fastembed_model()
+    # fastembed returns iterator; each embedding is a list[float]
+    return [list(vec) for vec in model.embed(texts)]
 
 def _resize(vec: List[float], target: int) -> List[float]:
     n = len(vec)
@@ -59,6 +82,13 @@ class EmbeddingService:
         self.dimension = int(getattr(settings, "embedding_dimension", 1536))
         self.client = None
 
+        # Determine slim mode via env
+        self.slim_mode = os.getenv("SLIM_EMBEDDINGS", "1") == "1"
+        if self.slim_mode and FASTEMBED_AVAILABLE:
+            logger.info("EmbeddingService using fastembed (slim mode)")
+        elif self.slim_mode:
+            logger.warning("SLIM_EMBEDDINGS=1 but fastembed unavailable; falling back to sentence-transformers")
+
         # OpenAI optional
         try:
             from openai import AsyncOpenAI  # type: ignore
@@ -67,7 +97,6 @@ class EmbeddingService:
             self._AsyncOpenAI = None
 
         if self.provider == "openai" and self._AsyncOpenAI:
-            import os
             api_key = getattr(settings, "openai_api_key", None) or os.getenv("OPENAI_API_KEY")
             if api_key:
                 self.client = self._AsyncOpenAI(api_key=api_key)
@@ -75,12 +104,15 @@ class EmbeddingService:
                 logger.warning("OPENAI_API_KEY not set; using local embeddings instead")
                 self.provider = "local"
 
-        logger.info(f"EmbeddingService provider={self.provider} model={self.model} target_dim={self.dimension}")
+        logger.info(f"EmbeddingService provider={self.provider} model={self.model} target_dim={self.dimension} slim_mode={self.slim_mode}")
 
     async def generate_embedding(self, text: str) -> List[float]:
         if self.provider == "local":
             try:
-                vec = (await asyncio.to_thread(generate_embedding_local, [text]))[0]
+                if self.slim_mode and FASTEMBED_AVAILABLE:
+                    vec = (await asyncio.to_thread(generate_embedding_fastembed, [text]))[0]
+                else:
+                    vec = (await asyncio.to_thread(generate_embedding_local, [text]))[0]
                 return _resize(vec, self.dimension)
             except Exception as e:
                 logger.error(f"Local embedding error: {e}")
@@ -97,9 +129,12 @@ class EmbeddingService:
     async def generate_embeddings_batch(self, texts: List[str]) -> List[List[float]]:
         if self.provider == "local":
             try:
-                vectors = await asyncio.to_thread(generate_embedding_local, texts)
+                if self.slim_mode and FASTEMBED_AVAILABLE:
+                    vectors = await asyncio.to_thread(generate_embedding_fastembed, texts)
+                else:
+                    vectors = await asyncio.to_thread(generate_embedding_local, texts)
                 resized = [_resize(v, self.dimension) for v in vectors]
-                logger.info(f"Generated {len(resized)} local embeddings (dim={self.dimension})")
+                logger.info(f"Generated {len(resized)} local embeddings (dim={self.dimension}) slim_mode={self.slim_mode}")
                 return resized
             except Exception as e:
                 logger.error(f"Local batch embedding error: {e}")

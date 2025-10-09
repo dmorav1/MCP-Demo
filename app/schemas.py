@@ -85,3 +85,24 @@ class SearchResponseNew(BaseModel):
     total_results: int
 
 logger.info("✅ Pydantic schemas loaded successfully")
+
+# --- Simplified chunk-level search schemas (used by current /search implementation) ---
+class ChunkSearchResult(BaseModel):
+    id: int
+    conversation_id: int
+    order_index: int
+    chunk_text: str
+    author_name: Optional[str] = None
+    author_type: Optional[str] = None
+    timestamp: Optional[datetime] = None
+    scenario_title: Optional[str] = None
+    original_title: Optional[str] = None
+    url: Optional[str] = None
+    created_at: datetime
+    relevance_score: float
+
+class ChunkSearchResponse(BaseModel):
+    query: str
+    total_results: int
+    results: List[ChunkSearchResult]
+

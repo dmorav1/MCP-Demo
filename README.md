@@ -159,6 +159,29 @@ chmod +x start-dev.sh
 - Docker and Docker Compose running
 - `.env` file with valid OpenAI API key
 
+### Enabling OpenAI Chat (LLM Answers)
+
+The chat gateway supports real LLM answers when an `OPENAI_API_KEY` is present. Without it you will see a clearly marked fallback answer like:
+
+`(Fallback answer) LLM unavailable and no context found. Please configure OPENAI_API_KEY or ingest more data.`
+
+To enable real answers:
+
+```bash
+export OPENAI_API_KEY=sk-your-key
+# Optional: choose a model (defaults to gpt-4o-mini)
+export CHAT_MODEL=gpt-4o-mini
+docker compose up -d --build
+```
+
+Hot reload: If the backend is already running you can inject a key without rebuild:
+```bash
+docker compose exec mcp-backend bash -c 'export OPENAI_API_KEY=sk-your-key && curl -s http://localhost:8000/chat/health'
+```
+The gateway lazily initializes the OpenAI client, so subsequent `/chat/ask` calls use the LLM path automatically.
+
+If the key is invalid or a provider error occurs, a fallback summary of top semantic matches is returned instead of a hard error.
+
 ### Manual Setup
 
 ### Prerequisites

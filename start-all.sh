@@ -1,7 +1,7 @@
 #!/bin/bash
 // filepath: start-all.sh
 
-set -e
+set -euo pipefail
 
 echo "🚀 Starting MCP Chat Application"
 echo "================================="
@@ -244,11 +244,11 @@ echo "   This may take several minutes on first run..."
 echo ""
 
 if ! $DOCKER_COMPOSE build --no-cache 2>&1 | tee build.log; then
-    log_error "Failed to build images"
-    echo ""
-    echo "📋 Checking build.log for errors..."
-    tail -50 build.log
-    exit 1
+  log_error "Failed to build images"
+  echo ""
+  echo "📋 Checking build.log for errors..."
+  tail -50 build.log
+  exit 1
 fi
 
 log_success "Images built successfully"
@@ -299,37 +299,42 @@ for i in {1..30}; do
 done
 
 echo -n "   Frontend: "
+# Give the frontend a short grace period before declaring a crash to avoid false alarms
+FRONTEND_GRACE_SECS=10
 for i in {1..120}; do
-    if curl -sf http://localhost:3001 >/dev/null 2>&1; then
-        log_success "Ready"
-        break
+  if curl -sf http://localhost:3001 >/dev/null 2>&1; then
+    log_success "Ready"
+    break
+  fi
+
+  # Only consider it a crash if the container exists and has exited
+  if [ "$i" -gt "$FRONTEND_GRACE_SECS" ]; then
+    if docker ps -a --filter "name=mcp-frontend" --filter "status=exited" --format '{{.Names}}' | grep -q "mcp-frontend"; then
+      echo ""
+      log_error "Frontend container exited during startup"
+      echo ""
+      echo "📋 Frontend logs:"
+      $DOCKER_COMPOSE logs frontend
+      exit 1
     fi
-    
-    if ! docker ps | grep -q mcp-frontend; then
-        echo ""
-        log_error "Frontend container crashed during startup"
-        echo ""
-        echo "📋 Frontend logs:"
-        $DOCKER_COMPOSE logs frontend
-        exit 1
-    fi
-    
-    sleep 1
-    echo -n "."
-    
-    if [ $((i % 15)) -eq 0 ]; then
-        echo ""
-        echo -n "   Still starting (${i}s)... "
-    fi
-    
-    if [ $i -eq 120 ]; then
-        echo ""
-        log_error "Frontend failed to start within 2 minutes"
-        echo ""
-        echo "📋 Frontend logs:"
-        $DOCKER_COMPOSE logs frontend
-        exit 1
-    fi
+  fi
+
+  sleep 1
+  echo -n "."
+
+  if [ $((i % 15)) -eq 0 ]; then
+    echo ""
+    echo -n "   Still starting (${i}s)... "
+  fi
+
+  if [ $i -eq 120 ]; then
+    echo ""
+    log_error "Frontend failed to start within 2 minutes"
+    echo ""
+    echo "📋 Frontend logs:"
+    $DOCKER_COMPOSE logs frontend
+    exit 1
+  fi
 done
 
 echo ""
@@ -346,6 +351,31 @@ echo "   🔧 Backend API:     http://localhost:8000"
 echo "   📚 API Docs:        http://localhost:8000/docs"
 echo "   🏥 Health Check:    http://localhost:8000/health"
 echo ""
+log_info "Running quick diagnostics..."
+# Check if backend has an OpenAI key set
+BACKEND_KEY_LEN=$($DOCKER_COMPOSE exec -T mcp-backend /bin/sh -lc 'printf "%s" "$OPENAI_API_KEY" | wc -c' 2>/dev/null || echo 0)
+# Check conversation count via health endpoint (more stable than parsing /conversations)
+HEALTH_JSON=$(curl -sf http://localhost:8000/health || true)
+CONV_COUNT=$(printf "%s" "$HEALTH_JSON" | grep -o '"conversation_count":[0-9]*' | sed 's/[^0-9]//g')
+[ -z "$CONV_COUNT" ] && CONV_COUNT=0
+
+if [ "$CONV_COUNT" -eq 0 ]; then
+  log_warning "No conversations found yet; chat may show fallback due to no context."
+  echo "   Tip: POST a small dataset to /ingest or use sample-data.json to seed content."
+fi
+
+if [ "$BACKEND_KEY_LEN" -gt 1 ]; then
+  # If key exists but recent logs show insufficient_quota, inform the user
+  if $DOCKER_COMPOSE logs --tail=300 mcp-backend 2>/dev/null | grep -qi "insufficient_quota"; then
+    log_warning "OpenAI API key is configured, but requests are failing due to insufficient quota."
+    echo "   LLM answers will fall back to context summaries until quota/billing is resolved."
+    echo "   See: https://platform.openai.com/account/billing"
+  fi
+else
+  log_warning "OPENAI_API_KEY is not set in the backend container; chat will use fallback answers."
+  echo "   Set OPENAI_API_KEY in your .env and rerun this script to enable LLM answers."
+fi
+
 echo "📋 Quick Commands:"
 echo "   View logs:          $DOCKER_COMPOSE logs -f"
 echo "   View frontend logs: $DOCKER_COMPOSE logs -f frontend"
