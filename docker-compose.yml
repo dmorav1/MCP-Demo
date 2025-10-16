@@ -29,6 +29,7 @@ services:
     environment:
       DATABASE_URL: postgresql+psycopg://mcp_user:mcp_password@postgres:5432/mcp_db
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      SLACK_BOT_TOKEN: ${SLACK_BOT_TOKEN:-}
       EMBEDDING_MODEL: text-embedding-ada-002
       EMBEDDING_DIMENSION: 1536
       FASTAPI_BASE_URL: http://mcp-backend:8000
