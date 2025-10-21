@@ -4,17 +4,22 @@ import time
 import json
 import ssl
 import certifi
+import logging
 import argparse
 from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional
 
 import requests
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
 
 def _vprint(verbose: bool, msg: str) -> None:
     if verbose:
-        print(f"[ingest] {msg}", flush=True)
+        logger.info(msg)
 
 def ts_to_str(ts: str) -> str:
     try:

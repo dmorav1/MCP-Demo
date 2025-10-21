@@ -92,6 +92,30 @@ services:
     networks:
       - mcp-network
 
+  slackbot:
+    build: ./slack
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    environment:
+       PORT: 3000
+       DATABASE_URL: postgresql+psycopg://mcp_user:mcp_password@postgres:5432/mcp_db
+       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+       SLACK_BOT_TOKEN: ${SLACK_BOT_TOKEN:-}
+       EMBEDDING_MODEL: text-embedding-ada-002
+       EMBEDDING_DIMENSION: 1536
+       FASTAPI_BASE_URL: http://mcp-backend:8000
+       SLACK_CHANNEL: ${SLACK_CHANNEL:-warchan-ai-demo-1}
+       SLACK_APP_TOKEN: ${SLACK_APP_TOKEN:-}
+    volumes:
+      - ./slack:/usr/src/app
+    networks:
+      - mcp-network
+    depends_on:
+      mcp-backend:
+        condition: service_healthy
+
 networks:
   mcp-network:
     driver: bridge

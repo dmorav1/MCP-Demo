@@ -56,6 +56,10 @@ if [ ! -f .env ]; then
     cp .env.example .env
 fi
 
+set -a
+source .env
+set +a
+
 if ! grep -q "OPENAI_API_KEY=sk-" .env 2>/dev/null; then
     log_warning "OPENAI_API_KEY not configured in .env"
     echo "   Please add your OpenAI API key to .env file"

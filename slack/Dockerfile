@@ -16,9 +16,10 @@ RUN pip install --upgrade pip && pip install -r requirements.txt
 # Copy app sources (bot.py and optional src/)
 COPY bot.py ./ 
 COPY src/ ./src/
+COPY tools/ ./tools/
 
 # expose port (matching Flask default)
 EXPOSE 3000
 
 # run the bot
-CMD ["python", "bot.py"]
+CMD ["python", "./tools/slack_ingest_processor.py"]
