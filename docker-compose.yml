@@ -48,6 +48,30 @@ services:
     networks:
       - mcp-network
 
+  mcp-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mcp-server
+    # MCP server is a thin proxy that exposes MCP tools and forwards
+    # requests to the FastAPI backend. It does not need to expose a TCP
+    # port for HTTP because it communicates with the backend over the
+    # Docker network. The MCP protocol typically uses stdio or direct
+    # client/server channels; for now we run it as a process inside
+    # the container and let operators attach to logs/stdio.
+    command: ["python", "-m", "app.mcp_server"]
+    environment:
+      FASTAPI_BASE_URL: http://mcp-backend:8000
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    depends_on:
+      mcp-backend:
+        condition: service_healthy
+    volumes:
+      - ./app:/app/app
+    restart: unless-stopped
+    networks:
+      - mcp-network
+
   frontend:
     build:
       context: ./frontend
