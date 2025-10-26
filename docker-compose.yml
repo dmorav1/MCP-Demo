@@ -53,15 +53,15 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: mcp-server
-    # MCP server is a thin proxy that exposes MCP tools and forwards
-    # requests to the FastAPI backend. It does not need to expose a TCP
-    # port for HTTP because it communicates with the backend over the
-    # Docker network. The MCP protocol typically uses stdio or direct
-    # client/server channels; for now we run it as a process inside
-    # the container and let operators attach to logs/stdio.
-    command: ["python", "-m", "app.mcp_server"]
+    # Run MCP server in HTTP mode (networked) so it behaves as a normal
+    # daemon inside Docker. This uses the FastAPI adapter inside
+    # `app/mcp_server.py` (exposes /mcp/* endpoints) and lets us run
+    # the process under uvicorn. We expose port 8080 for local access
+    # and healthchecks.
+    command: ["uvicorn", "app.mcp_server:HTTP_APP", "--host", "0.0.0.0", "--port", "8080"]
     environment:
       FASTAPI_BASE_URL: http://mcp-backend:8000
+      MCP_TRANSPORT: http
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
     depends_on:
       mcp-backend:
@@ -69,6 +69,13 @@ services:
     volumes:
       - ./app:/app/app
     restart: unless-stopped
+    ports:
+      - "8100:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/mcp/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
     networks:
       - mcp-network
 

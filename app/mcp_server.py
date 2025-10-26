@@ -22,6 +22,96 @@ mcp_app = FastMCP(
     "Conversational Data Server"
 )
 
+# Also provide an HTTP adapter so the MCP toolset can run as a networked
+# service inside Docker (avoids stdio transport issues). When the
+# environment variable `MCP_TRANSPORT` is set to `http` we expect this
+# module to be served by an ASGI server (uvicorn) which will expose the
+# endpoints below on a TCP port.
+from fastapi import FastAPI, HTTPException
+
+HTTP_APP = FastAPI(title="MCP HTTP Adapter")
+
+
+@HTTP_APP.get("/mcp/search")
+async def http_search(q: str, top_k: int = 5):
+    async with httpx.AsyncClient() as client:
+        try:
+            resp = await client.get(f"{FASTAPI_BASE_URL}/search", params={"q": q, "top_k": top_k})
+            resp.raise_for_status()
+            return resp.json()
+        except httpx.HTTPStatusError as e:
+            raise HTTPException(status_code=e.response.status_code, detail=e.response.text)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+
+@HTTP_APP.post("/mcp/ingest")
+async def http_ingest(payload: dict):
+    async with httpx.AsyncClient() as client:
+        try:
+            resp = await client.post(f"{FASTAPI_BASE_URL}/ingest", json=payload)
+            resp.raise_for_status()
+            return resp.json()
+        except httpx.HTTPStatusError as e:
+            raise HTTPException(status_code=e.response.status_code, detail=e.response.text)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+
+@HTTP_APP.get("/mcp/conversations")
+async def http_list_conversations(skip: int = 0, limit: int = 100):
+    async with httpx.AsyncClient() as client:
+        try:
+            resp = await client.get(f"{FASTAPI_BASE_URL}/conversations", params={"skip": skip, "limit": limit})
+            resp.raise_for_status()
+            return resp.json()
+        except httpx.HTTPStatusError as e:
+            raise HTTPException(status_code=e.response.status_code, detail=e.response.text)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+
+@HTTP_APP.get("/mcp/conversations/{conversation_id}")
+async def http_get_conversation(conversation_id: int):
+    async with httpx.AsyncClient() as client:
+        try:
+            resp = await client.get(f"{FASTAPI_BASE_URL}/conversations/{conversation_id}")
+            resp.raise_for_status()
+            return resp.json()
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 404:
+                raise HTTPException(status_code=404, detail="Conversation not found")
+            raise HTTPException(status_code=e.response.status_code, detail=e.response.text)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+
+@HTTP_APP.delete("/mcp/conversations/{conversation_id}")
+async def http_delete_conversation(conversation_id: int):
+    async with httpx.AsyncClient() as client:
+        try:
+            resp = await client.delete(f"{FASTAPI_BASE_URL}/conversations/{conversation_id}")
+            resp.raise_for_status()
+            return resp.json()
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 404:
+                raise HTTPException(status_code=404, detail="Conversation not found")
+            raise HTTPException(status_code=e.response.status_code, detail=e.response.text)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+
+@HTTP_APP.get("/mcp/health")
+async def http_health():
+    async with httpx.AsyncClient() as client:
+        try:
+            resp = await client.get(f"{FASTAPI_BASE_URL}/health")
+            resp.raise_for_status()
+            return {"status": "ok", "backend": resp.json()}
+        except Exception as e:
+            return {"status": "error", "error": str(e)}
+
+
 
 @mcp_app.tool()
 async def search_conversations(context: Context, q: str, top_k: int = 5) -> schemas.SearchResponse:
