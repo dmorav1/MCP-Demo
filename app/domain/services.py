@@ -10,7 +10,8 @@ from dataclasses import dataclass
 from .entities import Conversation, ConversationChunk, SearchResults, SearchResult
 from .value_objects import (
     ConversationId, ChunkText, AuthorInfo, ChunkMetadata, 
-    SearchQuery, RelevanceScore, ConversationMetadata, Embedding
+    SearchQuery, RelevanceScore, ConversationMetadata, Embedding,
+    STANDARD_EMBEDDING_DIMENSION
 )
 from .repositories import ValidationError
 
@@ -165,7 +166,7 @@ class EmbeddingValidationService:
     Enforces business rules about embedding format, dimension, and quality.
     """
     
-    REQUIRED_DIMENSION = 1536
+    REQUIRED_DIMENSION = STANDARD_EMBEDDING_DIMENSION
     MIN_VALID_VALUES = 100  # Minimum non-zero values for quality check
     
     def validate_embedding(self, embedding: Embedding) -> bool:

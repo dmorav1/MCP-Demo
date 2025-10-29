@@ -167,7 +167,8 @@ app/
 - Set up basic infrastructure
 
 ### Phase 2: Application Layer (Weeks 3-4)
-- Implement use cases
+- Implement dependency injection container and service registration
+- Implement use cases with DI support
 - Create DTOs
 
 ### Phase 3: Outbound Adapters (Weeks 5-7)
@@ -185,10 +186,10 @@ app/
 - Update MCP server implementation
 - Refactor Slack integration
 
-### Phase 6: Infrastructure (Weeks 13-14)
-- Implement dependency injection
-- Centralize configuration
+### Phase 6: Infrastructure Enhancements (Weeks 13-14)
 - Enhanced logging and monitoring
+- Performance optimization
+- Additional configuration management
 
 ### Phase 7: Testing & Deployment (Weeks 15-17)
 - Comprehensive test suite
@@ -213,7 +214,7 @@ app/
 - [ ] Domain layer has zero infrastructure dependencies
 - [ ] All adapters implement defined interfaces
 - [ ] Configuration-driven adapter selection
-- [ ] Clean dependency injection setup
+- [ ] Clean dependency injection setup (completed in Phase 2)
 
 ## Risks and Mitigation
 

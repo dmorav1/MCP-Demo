@@ -9,6 +9,9 @@ from dataclasses import dataclass
 from datetime import datetime
 from abc import ABC
 
+# Domain constants
+STANDARD_EMBEDDING_DIMENSION = 1536  # Standard embedding dimension for the system
+
 
 @dataclass(frozen=True)
 class ConversationId:
@@ -55,15 +58,15 @@ class Embedding:
     def __post_init__(self):
         if not self.vector:
             raise ValueError("Embedding vector cannot be empty")
-        if len(self.vector) != 1536:  # Business rule: standard dimension
-            raise ValueError(f"Embedding must be 1536 dimensions, got {len(self.vector)}")
+        if len(self.vector) != STANDARD_EMBEDDING_DIMENSION:  # Business rule: standard dimension
+            raise ValueError(f"Embedding must be {STANDARD_EMBEDDING_DIMENSION} dimensions, got {len(self.vector)}")
         if not all(isinstance(x, (int, float)) for x in self.vector):
             raise ValueError("Embedding vector must contain only numbers")
     
     @property
     def dimension(self) -> int:
         """Get embedding dimension."""
-        return len(self.vector)
+        return STANDARD_EMBEDDING_DIMENSION
 
 
 @dataclass(frozen=True)

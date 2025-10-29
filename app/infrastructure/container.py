@@ -8,7 +8,7 @@ object creation and lifetime. It supports:
 - Lazy initialization
 - Configuration-based setup
 """
-from typing import TypeVar, Type, Callable, Dict, Any, Optional, Union
+from typing import TypeVar, Type, Callable, Dict, Any, Optional, Union, List
 from abc import ABC, abstractmethod
 from enum import Enum
 import inspect
@@ -240,7 +240,7 @@ def get_container() -> Container:
     return _container
 
 
-def configure_container(providers: list[ServiceProvider]) -> Container:
+def configure_container(providers: List[ServiceProvider]) -> Container:
     """
     Configure the container with service providers.
     
