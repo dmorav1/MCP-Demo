@@ -18,7 +18,6 @@ from app.domain.services import (
     SearchRelevanceService, ConversationValidationService,
     ChunkingParameters
 )
-from app.domain.events import DomainEventPublisher, get_domain_event_publisher
 from .config import AppSettings, get_settings, get_chunking_config
 
 
@@ -196,8 +195,6 @@ class Container:
         # Configuration
         self.register_singleton(AppSettings, factory=get_settings)
         
-        # Domain event publisher
-        self.register_singleton(DomainEventPublisher, factory=get_domain_event_publisher)
         
         # Domain services with configuration
         self.register_singleton(

@@ -6,5 +6,4 @@ This package contains:
 - value_objects.py: Value objects (ConversationId, Embedding, etc.)
 - repositories.py: Repository port interfaces
 - services.py: Domain services (pure business logic)
-- events.py: Domain events
 """

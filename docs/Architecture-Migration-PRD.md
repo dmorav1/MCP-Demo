@@ -47,15 +47,13 @@ app/
 │   ├── models.py             # Domain entities
 │   ├── value_objects.py      # Embedding, SearchQuery, etc.
 │   ├── repositories.py       # Port interfaces
-│   ├── services.py           # Domain services
-│   └── events.py             # Domain events
+│   └── services.py           # Domain services
 │
 ├── application/              # Use cases and orchestration
 │   ├── ingest_conversation.py
 │   ├── search_conversations.py
 │   ├── rag_service.py        # LangChain integration
-│   ├── dto.py               # Data transfer objects
-│   └── query_handlers/       # CQRS pattern
+│   └── dto.py               # Data transfer objects
 │
 ├── adapters/
 │   ├── inbound/             # Primary adapters (driving)
@@ -166,13 +164,11 @@ app/
 ### Phase 1: Foundation (Weeks 1-2)
 - Create domain layer with pure business entities
 - Define port interfaces
-- Implement domain events
 - Set up basic infrastructure
 
 ### Phase 2: Application Layer (Weeks 3-4)
 - Implement use cases
-- Create DTOs and query handlers
-- Build CQRS pattern foundation
+- Create DTOs
 
 ### Phase 3: Outbound Adapters (Weeks 5-7)
 - Migrate database persistence
