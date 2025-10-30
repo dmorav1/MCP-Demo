@@ -231,6 +231,32 @@ class CoreServiceProvider(ServiceProvider):
         pass
 
 
+class ApplicationServiceProvider(ServiceProvider):
+    """Service provider for application layer use cases."""
+    
+    def configure_services(self, container: Container) -> None:
+        """
+        Configure application layer services.
+        
+        Use cases are registered as transient to ensure clean state
+        for each request/operation.
+        """
+        # Import here to avoid circular dependencies
+        from app.application import (
+            IngestConversationUseCase,
+            SearchConversationsUseCase
+        )
+        from app.application.rag_service import RAGService, RAGConfig
+        
+        # Register use cases as transient (new instance per request)
+        container.register_transient(IngestConversationUseCase)
+        container.register_transient(SearchConversationsUseCase)
+        
+        # Register RAG service (stub for Phase 4)
+        container.register_singleton(RAGService)
+        container.register_singleton(RAGConfig)
+
+
 # Global container instance
 _container = Container()
 
