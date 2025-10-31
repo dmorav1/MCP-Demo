@@ -81,10 +81,7 @@ class SearchConversationsUseCase:
             self._validate_query(request)
             
             # Step 2: Create search query value object
-            search_query = SearchQuery(
-                text=request.query,
-                top_k=request.top_k
-            )
+            search_query = SearchQuery(text=request.query)
             
             # Step 3: Generate query embedding
             query_embedding = await self._generate_query_embedding(request.query)
@@ -185,7 +182,7 @@ class SearchConversationsUseCase:
         """
         try:
             embedding = await self.embedding_service.generate_embedding(query_text)
-            logger.debug(f"Generated query embedding with dimension {len(embedding.values)}")
+            logger.debug(f"Generated query embedding with dimension {len(embedding.vector)}")
             return embedding
         except Exception as e:
             logger.error(f"Failed to generate query embedding: {str(e)}")
@@ -325,7 +322,7 @@ class SearchConversationsUseCase:
             dto = SearchResultDTO(
                 chunk_id=chunk.id.value if chunk.id else "",
                 conversation_id=chunk.conversation_id.value,
-                text=chunk.text.value,
+                text=chunk.text.content,
                 score=score.value,
                 author_name=chunk.metadata.author_info.name if chunk.metadata.author_info else None,
                 author_type=chunk.metadata.author_info.author_type if chunk.metadata.author_info else None,

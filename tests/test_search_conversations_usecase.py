@@ -88,7 +88,7 @@ class TestSearchConversationsUseCase:
                     author_info=AuthorInfo(name="Agent", author_type="assistant"),
                     timestamp=datetime(2024, 1, 1, 10, 0, 0)
                 ),
-                embedding=Embedding([0.1] * 384)
+                embedding=Embedding([0.1] * 1536)
             ),
             ConversationChunk(
                 id=ChunkId("chunk-2"),
@@ -99,7 +99,7 @@ class TestSearchConversationsUseCase:
                     author_info=AuthorInfo(name="Agent", author_type="assistant"),
                     timestamp=datetime(2024, 1, 1, 10, 1, 0)
                 ),
-                embedding=Embedding([0.2] * 384)
+                embedding=Embedding([0.2] * 1536)
             ),
             ConversationChunk(
                 id=ChunkId("chunk-3"),
@@ -110,7 +110,7 @@ class TestSearchConversationsUseCase:
                     author_info=AuthorInfo(name="User", author_type="user"),
                     timestamp=datetime(2024, 1, 2, 14, 30, 0)
                 ),
-                embedding=Embedding([0.3] * 384)
+                embedding=Embedding([0.3] * 1536)
             )
         ]
         
@@ -127,7 +127,7 @@ class TestSearchConversationsUseCase:
     ):
         """Test successful search workflow."""
         # Setup mocks
-        query_embedding = Embedding([0.15] * 384)
+        query_embedding = Embedding([0.15] * 1536)
         mock_embedding_service.generate_embedding.return_value = query_embedding
         
         # Mock search results with scores
@@ -224,7 +224,7 @@ class TestSearchConversationsUseCase:
         mock_vector_search_repo
     ):
         """Test handling of vector search repository failure."""
-        mock_embedding_service.generate_embedding.return_value = Embedding([0.1] * 384)
+        mock_embedding_service.generate_embedding.return_value = Embedding([0.1] * 1536)
         mock_vector_search_repo.similarity_search.side_effect = RepositoryError(
             "Database connection failed"
         )
@@ -244,7 +244,7 @@ class TestSearchConversationsUseCase:
         mock_vector_search_repo
     ):
         """Test search with no results."""
-        mock_embedding_service.generate_embedding.return_value = Embedding([0.1] * 384)
+        mock_embedding_service.generate_embedding.return_value = Embedding([0.1] * 1536)
         mock_vector_search_repo.similarity_search.return_value = []
         
         response = await use_case.execute(valid_search_request)
@@ -271,7 +271,7 @@ class TestSearchConversationsUseCase:
         )
         
         # Setup mocks
-        mock_embedding_service.generate_embedding.return_value = Embedding([0.1] * 384)
+        mock_embedding_service.generate_embedding.return_value = Embedding([0.1] * 1536)
         search_results = [
             (sample_chunks[0], RelevanceScore(0.95)),  # Should pass
             (sample_chunks[1], RelevanceScore(0.87)),  # Should pass
@@ -304,7 +304,7 @@ class TestSearchConversationsUseCase:
         )
         
         # Setup mocks
-        mock_embedding_service.generate_embedding.return_value = Embedding([0.1] * 384)
+        mock_embedding_service.generate_embedding.return_value = Embedding([0.1] * 1536)
         search_results = [
             (sample_chunks[0], RelevanceScore(0.95)),  # Agent
             (sample_chunks[1], RelevanceScore(0.87)),  # Agent
@@ -337,7 +337,7 @@ class TestSearchConversationsUseCase:
         )
         
         # Setup mocks
-        mock_embedding_service.generate_embedding.return_value = Embedding([0.1] * 384)
+        mock_embedding_service.generate_embedding.return_value = Embedding([0.1] * 1536)
         search_results = [
             (sample_chunks[0], RelevanceScore(0.95)),  # assistant
             (sample_chunks[1], RelevanceScore(0.87)),  # assistant
@@ -373,7 +373,7 @@ class TestSearchConversationsUseCase:
         )
         
         # Setup mocks
-        mock_embedding_service.generate_embedding.return_value = Embedding([0.1] * 384)
+        mock_embedding_service.generate_embedding.return_value = Embedding([0.1] * 1536)
         search_results = [
             (sample_chunks[0], RelevanceScore(0.95)),  # 2024-01-01
             (sample_chunks[1], RelevanceScore(0.87)),  # 2024-01-01
@@ -412,7 +412,7 @@ class TestSearchConversationsUseCase:
         )
         
         # Setup mocks
-        mock_embedding_service.generate_embedding.return_value = Embedding([0.1] * 384)
+        mock_embedding_service.generate_embedding.return_value = Embedding([0.1] * 1536)
         search_results = [
             (sample_chunks[0], RelevanceScore(0.95)),  # assistant, score 0.95 ✓
             (sample_chunks[1], RelevanceScore(0.87)),  # assistant, score 0.87 ✓
@@ -439,7 +439,7 @@ class TestSearchConversationsUseCase:
         mock_vector_search_repo
     ):
         """Test proper conversion of domain entities to DTOs."""
-        mock_embedding_service.generate_embedding.return_value = Embedding([0.1] * 384)
+        mock_embedding_service.generate_embedding.return_value = Embedding([0.1] * 1536)
         search_results = [(sample_chunks[0], RelevanceScore(0.95))]
         mock_vector_search_repo.similarity_search.return_value = search_results
         

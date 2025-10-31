@@ -190,11 +190,11 @@ class IngestConversationUseCase:
             chunks=[]
         )
         
-        # Validate using domain service
-        validation_result = self.validation_service.validate_conversation(conversation)
-        if not validation_result.is_valid:
-            error_messages = ", ".join(validation_result.errors)
-            raise ValidationError(f"Conversation validation failed: {error_messages}")
+        # Validate using domain service (raises ValidationError if invalid)
+        try:
+            self.validation_service.validate_conversation(conversation)
+        except ValidationError as e:
+            raise ValidationError(f"Conversation validation failed: {str(e)}")
         
         return conversation
     
@@ -214,7 +214,7 @@ class IngestConversationUseCase:
         domain_messages = []
         for msg in messages:
             domain_msg = {
-                "text": msg.text,
+                "content": msg.text,  # ChunkingService expects 'content' key
                 "author_name": msg.author_name,
                 "author_type": msg.author_type or "user",
                 "timestamp": msg.timestamp
@@ -243,21 +243,18 @@ class IngestConversationUseCase:
             return chunks
         
         # Extract texts for batch embedding
-        texts = [chunk.text.value for chunk in chunks]
+        texts = [chunk.text.content for chunk in chunks]
         
         try:
             # Generate embeddings in batch for efficiency
             embeddings = await self.embedding_service.generate_embeddings_batch(texts)
             
-            # Validate embeddings
+            # Validate embeddings (service raises ValidationError if invalid)
             for embedding in embeddings:
-                validation_result = self.embedding_validation_service.validate_embedding(
-                    embedding
-                )
-                if not validation_result.is_valid:
-                    raise EmbeddingError(
-                        f"Invalid embedding generated: {validation_result.errors}"
-                    )
+                try:
+                    self.embedding_validation_service.validate_embedding(embedding)
+                except ValidationError as ve:
+                    raise EmbeddingError(f"Invalid embedding generated: {str(ve)}")
             
             # Attach embeddings to chunks
             chunks_with_embeddings = []
