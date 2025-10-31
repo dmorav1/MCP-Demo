@@ -24,7 +24,7 @@ from app.domain.value_objects import (
 )
 from app.domain.repositories import (
     IVectorSearchRepository, IEmbeddingService,
-    RepositoryError, EmbeddingError, ValidationError
+    RepositoryError
 )
 from app.domain.services import SearchRelevanceService
 
