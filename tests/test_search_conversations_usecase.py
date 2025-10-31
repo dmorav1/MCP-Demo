@@ -14,7 +14,7 @@ from datetime import datetime
 
 from app.application.search_conversations import SearchConversationsUseCase
 from app.application.dto import (
-    SearchConversationRequest, SearchConversationResponse,
+    SearchConversationRequest,
     SearchFilters
 )
 from app.domain.entities import ConversationChunk
