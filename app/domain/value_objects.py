@@ -7,8 +7,6 @@ without any infrastructure dependencies.
 from typing import List, Optional
 from dataclasses import dataclass
 from datetime import datetime
-from abc import ABC
-
 # Domain constants
 STANDARD_EMBEDDING_DIMENSION = 1536  # Standard embedding dimension for the system
 
