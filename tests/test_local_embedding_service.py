@@ -5,8 +5,6 @@ Tests the local sentence-transformers embedding service with mocked dependencies
 """
 import pytest
 from unittest.mock import Mock, patch, MagicMock
-import asyncio
-
 from app.adapters.outbound.embeddings.local_embedding_service import LocalEmbeddingService
 from app.domain.repositories import EmbeddingError
 from app.domain.value_objects import Embedding, STANDARD_EMBEDDING_DIMENSION
