@@ -3,12 +3,17 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from typing import List
 import os
+from contextlib import asynccontextmanager
 
 from app import models, schemas, crud
 from app.database import engine, get_db, test_connection
 from app.routers.ingest import router as ingest_router
 from app.services import ContextFormatter
 from app.logging_config import setup_logging, get_logger
+
+# Import DI container
+from app.infrastructure.container import initialize_container, get_container
+from app.infrastructure.config import get_settings
 
 # Import chat gateway if it exists
 try:
@@ -24,26 +29,64 @@ logger = get_logger(__name__)
 
 logger.info("🚀 Initializing FastAPI application...")
 
-# Create database tables
-try:
-    logger.info("📊 Creating database tables...")
-    models.Base.metadata.create_all(bind=engine)
-    logger.info("✅ Database tables created/verified")
-except Exception as e:
-    logger.error(f"❌ Failed to create database tables: {e}")
-    raise
+# Feature flag for using new hexagonal architecture
+USE_NEW_ARCHITECTURE = os.getenv("USE_NEW_ARCHITECTURE", "true").lower() in ("true", "1", "yes")
 
-# Test database connection
-logger.info("🔍 Testing database connection...")
-if not test_connection():
-    logger.error("❌ Database connection test failed - application may not work correctly")
-else:
-    logger.info("✅ Database connection verified")
+logger.info(f"📐 Architecture mode: {'NEW (Hexagonal)' if USE_NEW_ARCHITECTURE else 'LEGACY'}")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    Application lifespan management.
+    Handles startup and shutdown events.
+    """
+    # Startup
+    logger.info("🔧 Application startup...")
+    
+    # Create database tables
+    try:
+        logger.info("📊 Creating database tables...")
+        models.Base.metadata.create_all(bind=engine)
+        logger.info("✅ Database tables created/verified")
+    except Exception as e:
+        logger.error(f"❌ Failed to create database tables: {e}")
+        raise
+    
+    # Test database connection
+    logger.info("🔍 Testing database connection...")
+    if not test_connection():
+        logger.error("❌ Database connection test failed - application may not work correctly")
+    else:
+        logger.info("✅ Database connection verified")
+    
+    # Initialize DI container if using new architecture
+    if USE_NEW_ARCHITECTURE:
+        try:
+            logger.info("🔌 Initializing dependency injection container...")
+            initialize_container(include_adapters=True)
+            logger.info("✅ DI container initialized with all adapters")
+            
+            # Validate configuration
+            settings = get_settings()
+            logger.info(f"✅ Configuration loaded: provider={settings.embedding.provider}, model={settings.embedding.model}")
+        except Exception as e:
+            logger.error(f"❌ Failed to initialize DI container: {e}")
+            raise
+    
+    logger.info("✅ Application startup complete")
+    
+    yield
+    
+    # Shutdown
+    logger.info("👋 Application shutdown...")
+
 
 app = FastAPI(
     title="MCP Conversational Data Server",
     description="Ingest, search, and serve conversational data via REST and MCP protocol",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan
 )
 
 # CORS configuration
@@ -86,6 +129,7 @@ async def health_check(db: Session = Depends(get_db)):
     """
     Health check endpoint.
     Returns service status and database connectivity.
+    Validates all adapters when using new architecture.
     """
     try:
         # Test database query
@@ -96,15 +140,50 @@ async def health_check(db: Session = Depends(get_db)):
         # Count conversations
         conversation_count = db.query(models.Conversation).count()
         
-        return {
+        health_info = {
             "status": "healthy",
             "service": "mcp-conversational-data-server",
             "database": db_status,
             "conversation_count": conversation_count,
+            "architecture": "hexagonal" if USE_NEW_ARCHITECTURE else "legacy",
             "embedding_provider": os.getenv("EMBEDDING_PROVIDER", "local"),
             "embedding_dimension": int(os.getenv("EMBEDDING_DIMENSION", 1536)),
             "chat_gateway": "available" if CHAT_ROUTER_AVAILABLE else "not available"
         }
+        
+        # If using new architecture, validate adapter registrations
+        if USE_NEW_ARCHITECTURE:
+            try:
+                from app.domain.repositories import (
+                    IConversationRepository, IChunkRepository,
+                    IEmbeddingService, IVectorSearchRepository
+                )
+                
+                container = get_container()
+                
+                # Check if all required services are registered
+                adapters_status = {
+                    "conversation_repository": container.is_registered(IConversationRepository),
+                    "chunk_repository": container.is_registered(IChunkRepository),
+                    "embedding_service": container.is_registered(IEmbeddingService),
+                    "vector_search_repository": container.is_registered(IVectorSearchRepository),
+                }
+                
+                health_info["adapters"] = adapters_status
+                health_info["di_container"] = "configured"
+                
+                # Check if all adapters are registered
+                if not all(adapters_status.values()):
+                    health_info["status"] = "degraded"
+                    health_info["warning"] = "Some adapters not registered"
+                    
+            except Exception as e:
+                logger.warning(f"Failed to validate adapters: {e}")
+                health_info["di_container"] = f"error: {str(e)}"
+                health_info["status"] = "degraded"
+        
+        return health_info
+        
     except Exception as e:
         logger.error(f"❌ Health check failed: {e}")
         raise HTTPException(

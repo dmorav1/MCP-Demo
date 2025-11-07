@@ -283,12 +283,117 @@ class EmbeddingServiceProvider(ServiceProvider):
         )
 
 
+class AdapterServiceProvider(ServiceProvider):
+    """Service provider for infrastructure adapters (repositories and external services)."""
+    
+    def configure_services(self, container: Container) -> None:
+        """
+        Configure infrastructure adapters.
+        
+        Adapters are registered with appropriate lifetimes:
+        - Database session factory: scoped (per-request)
+        - Repository adapters: transient (new instance per resolution, uses scoped session)
+        - Embedding service: singleton (configured via EmbeddingServiceProvider)
+        """
+        from sqlalchemy.orm import Session
+        from app.database import SessionLocal
+        from app.domain.repositories import (
+            IConversationRepository, IChunkRepository, 
+            IEmbeddingRepository, IVectorSearchRepository
+        )
+        from app.adapters.outbound.persistence import (
+            SqlAlchemyConversationRepository,
+            SqlAlchemyChunkRepository,
+            SqlAlchemyEmbeddingRepository,
+            SqlAlchemyVectorSearchRepository
+        )
+        
+        # Register database session factory
+        # Returns a new session that should be closed after use
+        def session_factory():
+            return SessionLocal()
+        
+        container.register_transient(Session, factory=session_factory)
+        
+        # Register repository adapters as transient
+        # Each resolution gets a new repository instance with a session from the container
+        def conversation_repo_factory():
+            session = container.resolve(Session)
+            return SqlAlchemyConversationRepository(session)
+        
+        def chunk_repo_factory():
+            session = container.resolve(Session)
+            return SqlAlchemyChunkRepository(session)
+        
+        def embedding_repo_factory():
+            session = container.resolve(Session)
+            return SqlAlchemyEmbeddingRepository(session)
+        
+        def vector_search_repo_factory():
+            session = container.resolve(Session)
+            return SqlAlchemyVectorSearchRepository(session)
+        
+        container.register_transient(
+            IConversationRepository,
+            factory=conversation_repo_factory
+        )
+        
+        container.register_transient(
+            IChunkRepository,
+            factory=chunk_repo_factory
+        )
+        
+        container.register_transient(
+            IEmbeddingRepository,
+            factory=embedding_repo_factory
+        )
+        
+        container.register_transient(
+            IVectorSearchRepository,
+            factory=vector_search_repo_factory
+        )
+
+
 # Global container instance
 _container = Container()
+_configured = False
 
 
 def get_container() -> Container:
     """Get the global dependency injection container."""
+    return _container
+
+
+def initialize_container(include_adapters: bool = True) -> Container:
+    """
+    Initialize the dependency injection container with all service providers.
+    
+    This should be called once at application startup.
+    
+    Args:
+        include_adapters: Whether to register adapter providers (default: True)
+                         Set to False for testing without infrastructure dependencies
+    
+    Returns:
+        The configured container
+    """
+    global _configured
+    
+    if _configured:
+        return _container
+    
+    providers = [
+        CoreServiceProvider(),
+        ApplicationServiceProvider(),
+        EmbeddingServiceProvider(),
+    ]
+    
+    if include_adapters:
+        providers.append(AdapterServiceProvider())
+    
+    configure_container(providers)
+    _configured = True
+    
     return _container
 
 
