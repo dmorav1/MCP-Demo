@@ -14,7 +14,6 @@ from app.domain.value_objects import (
     ConversationId, ConversationMetadata, ChunkText, 
     ChunkMetadata, AuthorInfo, Embedding
 )
-from app.domain.repositories import RepositoryError
 from app.models import Base
 
 
