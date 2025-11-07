@@ -6,7 +6,6 @@ with the all-MiniLM-L6-v2 model (384 dimensions, padded to 1536).
 """
 import asyncio
 from typing import List, Optional
-from functools import lru_cache
 import logging
 
 from app.domain.repositories import EmbeddingError
