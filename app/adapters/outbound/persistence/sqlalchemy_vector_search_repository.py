@@ -2,11 +2,17 @@
 SQLAlchemy implementation of IVectorSearchRepository.
 
 This adapter performs vector similarity search using pgvector operators.
+
+NOTE: Current implementation uses synchronous SQLAlchemy operations within
+async method signatures. This is a known limitation planned for Phase 6
+enhancement. Methods are declared as async for API compatibility with
+the domain interface, but operations are not truly asynchronous.
+See technical debt ticket: Migrate to SQLAlchemy AsyncSession (Phase 6).
 """
 from typing import List, Tuple
 import logging
 from sqlalchemy.orm import Session
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.domain.repositories import IVectorSearchRepository, RepositoryError
@@ -103,30 +109,43 @@ class SqlAlchemyVectorSearchRepository(IVectorSearchRepository):
             RepositoryError: If search fails
         """
         try:
-            # Use pgvector cosine similarity (or inner product) and filter at the DB level
-            # Assuming embedding is stored as a pgvector column and higher similarity is better
-            query_vec = query_embedding.vector
-            # Compute cosine similarity: 1 - (embedding <=> query_vec)
-            similarity_expr = 1 - func.cosine_distance(ConversationChunkModel.embedding, query_vec)
+            # Use same L2 distance approach as similarity_search
+            distance = ConversationChunkModel.embedding.l2_distance(query_embedding.vector)
+            
             stmt = (
-                select(ConversationChunkModel, similarity_expr.label("similarity"))
-                .where(ConversationChunkModel.embedding != None)
-                .where(similarity_expr >= threshold)
-                .order_by(similarity_expr.desc())
-                .limit(top_k)
+                select(ConversationChunkModel, distance)
+                .where(ConversationChunkModel.embedding.isnot(None))
+                .order_by(distance)
+                .limit(top_k * 2)  # Get more results to filter by threshold
             )
-            result = await self.session.execute(stmt)
+            
+            result = self.session.execute(stmt)
             rows = result.all()
+            
+            # Convert to domain entities with relevance scores and filter by threshold
             results = []
-            for db_chunk, similarity in rows:
+            for db_chunk, dist in rows:
                 chunk = self._to_entity(db_chunk)
-                score = RelevanceScore(value=float(similarity))
-                results.append((chunk, score))
-            logger.debug(f"Vector search with threshold {threshold} returned {len(results)} results")
+                # Convert distance to relevance score (0.0 to 1.0)
+                relevance = 1.0 / (1.0 + float(dist))
+                score = RelevanceScore(value=relevance)
+                
+                # Only include results above threshold
+                if relevance >= threshold:
+                    results.append((chunk, score))
+                    
+                    # Stop once we have top_k results above threshold
+                    if len(results) >= top_k:
+                        break
+            
+            logger.debug(
+                f"Vector search with threshold {threshold} returned {len(results)} results "
+                f"(from {len(rows)} candidates)"
+            )
+            
             return results
-        except RepositoryError:
-            raise
-        except Exception as e:
+            
+        except SQLAlchemyError as e:
             logger.error(f"Vector similarity search with threshold failed: {e}")
             raise RepositoryError(f"Vector similarity search with threshold failed: {e}") from e
     
