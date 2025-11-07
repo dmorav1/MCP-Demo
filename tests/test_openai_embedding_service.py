@@ -5,8 +5,6 @@ Tests the OpenAI embedding service with mocked API calls.
 """
 import pytest
 from unittest.mock import Mock, AsyncMock, patch
-import asyncio
-
 from app.adapters.outbound.embeddings.openai_embedding_service import OpenAIEmbeddingService
 from app.domain.repositories import EmbeddingError
 from app.domain.value_objects import Embedding, STANDARD_EMBEDDING_DIMENSION
