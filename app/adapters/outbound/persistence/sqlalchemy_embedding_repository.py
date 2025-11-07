@@ -2,6 +2,12 @@
 SQLAlchemy implementation of IEmbeddingRepository.
 
 This adapter handles embedding storage and retrieval operations.
+
+NOTE: Current implementation uses synchronous SQLAlchemy operations within
+async method signatures. This is a known limitation planned for Phase 6
+enhancement. Methods are declared as async for API compatibility with
+the domain interface, but operations are not truly asynchronous.
+See technical debt ticket: Migrate to SQLAlchemy AsyncSession (Phase 6).
 """
 from typing import List, Optional
 import logging

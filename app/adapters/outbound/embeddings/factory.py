@@ -6,8 +6,7 @@ Factory pattern implementation for creating embedding services based on configur
 from typing import Optional
 import logging
 
-from app.infrastructure.config import AppSettings
-settings = AppSettings()
+from app.infrastructure.config import get_settings
 from app.domain.repositories import EmbeddingError
 from .local_embedding_service import LocalEmbeddingService
 from .openai_embedding_service import OpenAIEmbeddingService
@@ -53,6 +52,7 @@ class EmbeddingServiceFactory:
             EmbeddingError: If provider is invalid or configuration is missing
         """
         # Use settings as defaults
+        settings = get_settings()
         provider = provider or settings.embedding_provider
         model = model or settings.embedding_model
         dimension = dimension or settings.embedding_dimension
