@@ -257,6 +257,32 @@ class ApplicationServiceProvider(ServiceProvider):
         container.register_singleton(RAGConfig)
 
 
+class EmbeddingServiceProvider(ServiceProvider):
+    """Service provider for embedding services."""
+    
+    def configure_services(self, container: Container) -> None:
+        """Configure embedding services based on application settings."""
+        from app.adapters.outbound.embeddings.factory import create_embedding_service
+        from app.domain.repositories import IEmbeddingService
+        
+        # Register embedding service as singleton using factory
+        def embedding_service_factory():
+            settings = container.resolve(AppSettings)
+            return create_embedding_service(
+                provider=settings.embedding.provider,
+                model=settings.embedding.model,
+                api_key=settings.embedding.api_key,
+                dimension=settings.embedding.dimension
+            )
+        
+        # Register using Protocol type checking
+        # Since IEmbeddingService is a Protocol, we register it as a factory
+        container.register_singleton(
+            IEmbeddingService,
+            factory=embedding_service_factory
+        )
+
+
 # Global container instance
 _container = Container()
 
