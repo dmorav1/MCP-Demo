@@ -10,7 +10,6 @@ import os
 from app.adapters.outbound.embeddings.local_embedding_service import LocalEmbeddingService
 from app.adapters.outbound.embeddings.openai_embedding_service import OpenAIEmbeddingService
 from app.adapters.outbound.embeddings.factory import create_embedding_service
-from app.domain.repositories import EmbeddingError
 from app.domain.value_objects import Embedding, STANDARD_EMBEDDING_DIMENSION
 
 
