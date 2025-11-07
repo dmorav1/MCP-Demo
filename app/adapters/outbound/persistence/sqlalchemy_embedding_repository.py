@@ -81,8 +81,10 @@ class SqlAlchemyEmbeddingRepository(IEmbeddingRepository):
                 logger.debug(f"No embedding found for chunk: {chunk_id.value}")
                 return None
             
+            # Convert numpy array to list of Python floats
+            vector = [float(x) for x in embedding_vector]
             logger.debug(f"Retrieved embedding for chunk: {chunk_id.value}")
-            return Embedding(vector=embedding_vector)
+            return Embedding(vector=vector)
             
         except SQLAlchemyError as e:
             logger.error(f"Failed to retrieve embedding for chunk {chunk_id.value}: {e}")

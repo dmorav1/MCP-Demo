@@ -289,7 +289,9 @@ class SqlAlchemyConversationRepository(IConversationRepository):
         # Create embedding if present
         embedding = None
         if db_chunk.embedding is not None:
-            embedding = Embedding(vector=db_chunk.embedding)
+            # Convert numpy array to list of Python floats
+            vector = [float(x) for x in db_chunk.embedding]
+            embedding = Embedding(vector=vector)
         
         return ConversationChunk(
             id=ChunkId(db_chunk.id) if db_chunk.id else None,
