@@ -5,7 +5,6 @@ Implements IEmbeddingService protocol using OpenAI's embedding API
 with text-embedding-ada-002 model (1536 dimensions).
 """
 import asyncio
-import time
 from typing import List, Optional
 import logging
 
