@@ -15,7 +15,7 @@ from app.adapters.outbound.persistence import (
 )
 from app.domain.entities import Conversation, ConversationChunk
 from app.domain.value_objects import (
-    ConversationId, ConversationMetadata, ChunkText,
+    ConversationMetadata, ChunkText,
     ChunkMetadata, AuthorInfo, Embedding
 )
 from app.models import Base
