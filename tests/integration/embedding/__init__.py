@@ -1,0 +1,1 @@
+"""Embedding service integration tests."""
