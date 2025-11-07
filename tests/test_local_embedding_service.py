@@ -4,7 +4,7 @@ Unit tests for LocalEmbeddingService.
 Tests the local sentence-transformers embedding service with mocked dependencies.
 """
 import pytest
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
+from unittest.mock import Mock, patch, MagicMock
 import asyncio
 
 from app.adapters.outbound.embeddings.local_embedding_service import LocalEmbeddingService
