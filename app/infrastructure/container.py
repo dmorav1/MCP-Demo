@@ -269,10 +269,10 @@ class EmbeddingServiceProvider(ServiceProvider):
         def embedding_service_factory():
             settings = container.resolve(AppSettings)
             return create_embedding_service(
-                provider=settings.embedding_provider,
-                model=settings.embedding_model,
-                api_key=settings.openai_api_key,
-                dimension=settings.embedding_dimension
+                provider=settings.embedding.provider,
+                model=settings.embedding.model,
+                api_key=settings.embedding.api_key,
+                dimension=settings.embedding.dimension
             )
         
         # Register using Protocol type checking
