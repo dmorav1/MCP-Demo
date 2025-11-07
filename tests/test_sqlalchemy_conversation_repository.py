@@ -11,7 +11,7 @@ from sqlalchemy.orm import sessionmaker
 from app.adapters.outbound.persistence import SqlAlchemyConversationRepository
 from app.domain.entities import Conversation, ConversationChunk
 from app.domain.value_objects import (
-    ConversationId, ConversationMetadata, ChunkId, ChunkText, 
+    ConversationId, ConversationMetadata, ChunkText, 
     ChunkMetadata, AuthorInfo, Embedding
 )
 from app.domain.repositories import RepositoryError
