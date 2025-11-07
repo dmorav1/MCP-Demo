@@ -103,21 +103,27 @@ class SqlAlchemyVectorSearchRepository(IVectorSearchRepository):
             RepositoryError: If search fails
         """
         try:
-            # Get all results first
-            all_results = await self.similarity_search(query_embedding, top_k * 2)
-            
-            # Filter by threshold
-            filtered_results = [
-                (chunk, score) for chunk, score in all_results
-                if score.value >= threshold
-            ]
-            
-            # Limit to top_k
-            results = filtered_results[:top_k]
-            
+            # Use pgvector cosine similarity (or inner product) and filter at the DB level
+            # Assuming embedding is stored as a pgvector column and higher similarity is better
+            query_vec = query_embedding.vector
+            # Compute cosine similarity: 1 - (embedding <=> query_vec)
+            similarity_expr = 1 - func.cosine_distance(ConversationChunkModel.embedding, query_vec)
+            stmt = (
+                select(ConversationChunkModel, similarity_expr.label("similarity"))
+                .where(ConversationChunkModel.embedding != None)
+                .where(similarity_expr >= threshold)
+                .order_by(similarity_expr.desc())
+                .limit(top_k)
+            )
+            result = await self.session.execute(stmt)
+            rows = result.all()
+            results = []
+            for db_chunk, similarity in rows:
+                chunk = self._to_entity(db_chunk)
+                score = RelevanceScore(value=float(similarity))
+                results.append((chunk, score))
             logger.debug(f"Vector search with threshold {threshold} returned {len(results)} results")
             return results
-            
         except RepositoryError:
             raise
         except Exception as e:
