@@ -5,7 +5,7 @@ Wrapper that adapts LangChain embedding models to the IEmbeddingService protocol
 This allows future integration with LangChain's ecosystem of embedding providers.
 """
 import asyncio
-from typing import List, Optional, Any
+from typing import List, Any
 import logging
 
 from app.domain.repositories import EmbeddingError
