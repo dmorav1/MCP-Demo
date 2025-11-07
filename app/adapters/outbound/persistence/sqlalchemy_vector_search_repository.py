@@ -5,7 +5,7 @@ This adapter performs vector similarity search using pgvector operators.
 """
 from typing import List, Tuple
 import logging
-from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.orm import Session
 from sqlalchemy import select, func
 from sqlalchemy.exc import SQLAlchemyError
 
