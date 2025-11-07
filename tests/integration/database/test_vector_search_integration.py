@@ -23,9 +23,9 @@ class TestVectorSearchIntegration:
         query_embedding = Embedding(vector=query_vector)
         
         # Search
-        results = await vector_search_repository.search_similar(
-            embedding=query_embedding,
-            limit=10
+        results = await vector_search_repository.similarity_search(
+            query_embedding=query_embedding,
+            top_k=10
         )
         
         # Should find results
@@ -58,7 +58,7 @@ class TestVectorSearchIntegration:
                         author_info=AuthorInfo(name=f"User{i}", author_type="human"),
                         timestamp=datetime.now(),
                     ),
-                    embedding=Embedding(vector=vector),
+                    query_embedding=Embedding(vector=vector),
                 )
                 chunks.append(chunk)
             
@@ -72,15 +72,15 @@ class TestVectorSearchIntegration:
         # Search with different limits
         query_embedding = Embedding(vector=[0.1] * 1536)
         
-        results_5 = await vector_search_repository.search_similar(
-            embedding=query_embedding,
-            limit=5
+        results_5 = await vector_search_repository.similarity_search(
+            query_embedding=query_embedding,
+            top_k=5
         )
         assert len(results_5) == 5
         
-        results_10 = await vector_search_repository.search_similar(
-            embedding=query_embedding,
-            limit=10
+        results_10 = await vector_search_repository.similarity_search(
+            query_embedding=query_embedding,
+            top_k=10
         )
         assert len(results_10) == 10
     
@@ -112,7 +112,7 @@ class TestVectorSearchIntegration:
                     author_info=AuthorInfo(name="User", author_type="human"),
                     timestamp=datetime.now(),
                 ),
-                embedding=Embedding(vector=[0.95] * 1536),  # Very similar
+                query_embedding=Embedding(vector=[0.95] * 1536),  # Very similar
             ),
             ConversationChunk(
                 id=None,
@@ -123,7 +123,7 @@ class TestVectorSearchIntegration:
                     author_info=AuthorInfo(name="User", author_type="human"),
                     timestamp=datetime.now(),
                 ),
-                embedding=Embedding(vector=[0.5] * 1536),  # Somewhat similar
+                query_embedding=Embedding(vector=[0.5] * 1536),  # Somewhat similar
             ),
             ConversationChunk(
                 id=None,
@@ -134,7 +134,7 @@ class TestVectorSearchIntegration:
                     author_info=AuthorInfo(name="User", author_type="human"),
                     timestamp=datetime.now(),
                 ),
-                embedding=Embedding(vector=[0.0] * 1536),  # Dissimilar
+                query_embedding=Embedding(vector=[0.0] * 1536),  # Dissimilar
             ),
         ]
         
@@ -146,9 +146,9 @@ class TestVectorSearchIntegration:
         saved = await conversation_repository.save(conv)
         
         # Search
-        results = await vector_search_repository.search_similar(
-            embedding=Embedding(vector=query_vector),
-            limit=3
+        results = await vector_search_repository.similarity_search(
+            query_embedding=Embedding(vector=query_vector),
+            top_k=3
         )
         
         # Verify results are in descending similarity order
@@ -169,9 +169,9 @@ class TestVectorSearchIntegration:
         # Search with high threshold (only very similar results)
         query_embedding = Embedding(vector=[0.0] * 1536)
         
-        results = await vector_search_repository.search_similar(
-            embedding=query_embedding,
-            limit=10,
+        results = await vector_search_repository.similarity_search(
+            query_embedding=query_embedding,
+            top_k=10,
             threshold=0.01  # Very strict threshold
         )
         
@@ -187,9 +187,9 @@ class TestVectorSearchIntegration:
         """Test vector search on empty database."""
         query_embedding = Embedding(vector=[0.5] * 1536)
         
-        results = await vector_search_repository.search_similar(
-            embedding=query_embedding,
-            limit=10
+        results = await vector_search_repository.similarity_search(
+            query_embedding=query_embedding,
+            top_k=10
         )
         
         # Should return empty list, not error
@@ -220,7 +220,7 @@ class TestVectorSearchIntegration:
                 author_info=AuthorInfo(name="User", author_type="human"),
                 timestamp=datetime.now(),
             ),
-            embedding=Embedding(vector=identical_vector),
+            query_embedding=Embedding(vector=identical_vector),
         )
         
         conv = Conversation(
@@ -231,9 +231,9 @@ class TestVectorSearchIntegration:
         await conversation_repository.save(conv)
         
         # Search with identical vector
-        results = await vector_search_repository.search_similar(
-            embedding=Embedding(vector=identical_vector),
-            limit=1
+        results = await vector_search_repository.similarity_search(
+            query_embedding=Embedding(vector=identical_vector),
+            top_k=1
         )
         
         # Distance should be very close to 0 (identical vectors)
@@ -251,9 +251,9 @@ class TestVectorSearchIntegration:
         
         # Search
         query_embedding = Embedding(vector=[0.5] * 1536)
-        results = await vector_search_repository.search_similar(
-            embedding=query_embedding,
-            limit=10
+        results = await vector_search_repository.similarity_search(
+            query_embedding=query_embedding,
+            top_k=10
         )
         
         # Should not return chunks without embeddings
@@ -294,7 +294,7 @@ class TestVectorSearchPerformance:
                         author_info=AuthorInfo(name=f"User{i}", author_type="human"),
                         timestamp=datetime.now(),
                     ),
-                    embedding=Embedding(vector=vector),
+                    query_embedding=Embedding(vector=vector),
                 )
                 chunks.append(chunk)
             
@@ -309,9 +309,9 @@ class TestVectorSearchPerformance:
         query_embedding = Embedding(vector=[0.5] * 1536)
         
         start_time = time.time()
-        results = await vector_search_repository.search_similar(
-            embedding=query_embedding,
-            limit=10
+        results = await vector_search_repository.similarity_search(
+            query_embedding=query_embedding,
+            top_k=10
         )
         elapsed = time.time() - start_time
         

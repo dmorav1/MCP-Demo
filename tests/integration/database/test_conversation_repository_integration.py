@@ -73,16 +73,39 @@ class TestConversationRepositoryIntegration:
         self, conversation_repository, sample_conversation
     ):
         """Test updating an existing conversation."""
+        from app.domain.entities import Conversation, ConversationChunk
+        from app.domain.value_objects import ConversationMetadata
+        
         # Save initial conversation
         saved = await conversation_repository.save(sample_conversation)
         original_id = saved.id
         
-        # Modify the conversation
-        saved.metadata.scenario_title = "Updated Title"
-        saved.chunks[0].text = ChunkText(content="Updated content")
+        # Create updated conversation (immutable value objects, need to recreate)
+        updated_metadata = ConversationMetadata(
+            scenario_title="Updated Title",
+            original_title=saved.metadata.original_title,
+            url=saved.metadata.url,
+            created_at=saved.metadata.created_at,
+        )
+        
+        updated_chunks = [
+            ConversationChunk(
+                id=saved.chunks[0].id,
+                conversation_id=saved.id,
+                text=ChunkText(content="Updated content"),
+                metadata=saved.chunks[0].metadata,
+                embedding=saved.chunks[0].embedding,
+            )
+        ] + saved.chunks[1:]
+        
+        updated_conv = Conversation(
+            id=original_id,
+            metadata=updated_metadata,
+            chunks=updated_chunks,
+        )
         
         # Save again (should update)
-        updated = await conversation_repository.save(saved)
+        updated = await conversation_repository.save(updated_conv)
         
         # Verify ID unchanged
         assert updated.id == original_id

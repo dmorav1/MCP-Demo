@@ -61,10 +61,13 @@ def postgres_container():
 @pytest.fixture(scope="session")
 def postgres_url(postgres_container) -> str:
     """Get PostgreSQL connection URL from container."""
-    # Convert to psycopg3 format
+    # Get base URL and convert to psycopg3 format
     url = postgres_container.get_connection_url()
-    if url.startswith("postgresql://"):
+    # Replace driver name to use psycopg (version 3)
+    if "postgresql://" in url and "postgresql+psycopg://" not in url:
         url = url.replace("postgresql://", "postgresql+psycopg://", 1)
+    elif "postgresql+psycopg2://" in url:
+        url = url.replace("postgresql+psycopg2://", "postgresql+psycopg://", 1)
     return url
 
 
