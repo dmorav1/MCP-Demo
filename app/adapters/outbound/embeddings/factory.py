@@ -6,7 +6,8 @@ Factory pattern implementation for creating embedding services based on configur
 from typing import Optional
 import logging
 
-from app.config import settings
+from app.infrastructure.config import AppSettings
+settings = AppSettings()
 from app.domain.repositories import EmbeddingError
 from .local_embedding_service import LocalEmbeddingService
 from .openai_embedding_service import OpenAIEmbeddingService
