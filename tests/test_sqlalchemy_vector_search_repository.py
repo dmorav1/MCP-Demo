@@ -156,6 +156,3 @@ class TestSqlAlchemyVectorSearchRepository:
         scores = [score.value for _, score in results]
         assert scores == sorted(scores, reverse=True), "Results should be ordered by relevance"
 
-
-# Integration test marker for tests that need PostgreSQL
-pytestmark = pytest.mark.integration
