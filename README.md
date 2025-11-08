@@ -1,13 +1,61 @@
-# MCP Backend
+# MCP RAG Demo - Phase 3 Complete
 
-A Model Context Protocol (MCP) backend service for storing and retrieving conversational data using PostgreSQL with pgvector for semantic search.
+A production-ready Model Context Protocol (MCP) backend service implementing hexagonal architecture with outbound adapters for storing and retrieving conversational data using PostgreSQL with pgvector for semantic search.
 
-## Features
+## 🎉 Phase 3: Outbound Adapters - Complete
+
+Phase 3 implements the adapter layer of the hexagonal architecture, providing clean separation between business logic and infrastructure concerns.
+
+### Key Features
+
+- ✅ **Hexagonal Architecture** - Complete domain, application, and adapter layers
+- ✅ **Multiple Embedding Providers** - Local (sentence-transformers), OpenAI, FastEmbed, LangChain
+- ✅ **Dependency Injection** - Fully configured DI container with automatic wiring
+- ✅ **Repository Pattern** - Clean data access with transaction support
+- ✅ **Configuration-Driven** - Runtime provider selection via environment variables
+- ✅ **100% Backward Compatible** - Feature flag for gradual migration
+- ✅ **Production Ready** - Comprehensive error handling, logging, and monitoring
+
+### Architecture Overview
+
+```
+┌─────────────────────────────────────────────────────────┐
+│              PRESENTATION LAYER                          │
+│         FastAPI REST API + MCP Server                    │
+└──────────────────────┬──────────────────────────────────┘
+                       │
+┌──────────────────────▼──────────────────────────────────┐
+│             APPLICATION LAYER                            │
+│    Use Cases: Ingest, Search, RAG Service               │
+└──────────────────────┬──────────────────────────────────┘
+                       │
+┌──────────────────────▼──────────────────────────────────┐
+│               DOMAIN LAYER                               │
+│    Entities, Value Objects, Port Interfaces              │
+└──────────────────────┬──────────────────────────────────┘
+                       │
+┌──────────────────────▼──────────────────────────────────┐
+│           ADAPTER LAYER (Phase 3)                        │
+│  • Repository Adapters (PostgreSQL + pgvector)           │
+│  • Embedding Service Adapters (Local/OpenAI/FastEmbed)  │
+│  • Dependency Injection Container                        │
+└──────────────────────┬──────────────────────────────────┘
+                       │
+┌──────────────────────▼──────────────────────────────────┐
+│            INFRASTRUCTURE                                │
+│    PostgreSQL + pgvector, OpenAI API                     │
+└─────────────────────────────────────────────────────────┘
+```
+
+## Core Features
 
 - **FastAPI** REST API with automatic OpenAPI documentation
 - **PostgreSQL** with **pgvector** extension for vector similarity search
-- **OpenAI embeddings** for semantic search capabilities
+- **Multiple embedding providers** - Local, OpenAI, FastEmbed, LangChain
+- **Hexagonal architecture** with clean separation of concerns
+- **Dependency injection** for testability and flexibility
 - **Docker** containerized deployment
+- **MCP protocol** support for Claude Desktop integration
 - Conversation chunking and embedding generation
 - Comprehensive test suite
 
@@ -672,3 +720,303 @@ curl -s "http://localhost:8000/search?q=hello&top_k=3" | jq .
 - Verify config.json is in the correct location
 - Check that localhost:3000 is accessible from your machine
 - Restart Claude Desktop completely (quit and reopen)
+
+---
+
+## 📚 Documentation
+
+### Phase 3 Documentation (NEW)
+
+Comprehensive documentation for the Phase 3 hexagonal architecture implementation:
+
+- **[Phase 3 Architecture](docs/Phase3-Architecture.md)** - Complete architecture documentation with diagrams, design patterns, and implementation details
+- **[Phase 3 Migration Guide](docs/Phase3-Migration-Guide.md)** - Step-by-step migration from legacy to new architecture with rollback procedures
+- **[Configuration Guide](docs/Configuration-Guide.md)** - Complete reference for all environment variables and configuration options
+- **[Operations Guide](docs/Operations-Guide.md)** - Deployment procedures, monitoring, incident response, and backup/recovery
+- **[Phase 3 Release Notes](docs/Phase3-Release-Notes.md)** - What's new, improvements, known limitations, and upgrade instructions
+
+### Additional Documentation
+
+- **[Migration Guide](docs/MIGRATION_GUIDE.md)** - General migration guide for hexagonal architecture
+- **[DI Container Implementation](docs/DI_CONTAINER_IMPLEMENTATION.md)** - Dependency injection container implementation details
+- **[DI Usage Examples](docs/DI_USAGE_EXAMPLES.md)** - Code examples for using the DI container
+- **[Deployment Guide](docs/DEPLOYMENT.md)** - Deployment instructions for various platforms
+- **[Docker Setup](docs/DOCKER_SETUP_COMPLETE.md)** - Complete Docker setup guide
+- **[Logging Guide](docs/LOGGING.md)** - Logging configuration and best practices
+- **[Embedding Services](docs/embedding-services.md)** - Embedding provider comparison and configuration
+
+### Architecture Documentation
+
+- **[Phase 3 Outbound Adapters Design](docs/architecture/Phase3-Outbound-Adapters-Design.md)** - Detailed adapter layer design
+- **[Phase 3 C4 Diagrams](docs/architecture/Phase3-C4-Diagrams.md)** - C4 architecture diagrams
+
+### Product Documentation
+
+- **[Phase 3 Product Requirements](docs/product/Phase3-Product-Requirements.md)** - Product requirements for Phase 3
+- **[Phase 3 Acceptance Criteria](docs/product/Phase3-Acceptance-Criteria.md)** - Validation checklist
+- **[Phase 3 Completion Summary](docs/product/PHASE3_COMPLETION_SUMMARY.md)** - Phase 3 completion report
+
+### API Documentation
+
+- **OpenAPI/Swagger:** http://localhost:8000/docs
+- **ReDoc:** http://localhost:8000/redoc
+- **Health Check:** http://localhost:8000/health
+
+---
+
+## 🚀 Quick Start
+
+### Option 1: Using New Architecture (Recommended)
+
+```bash
+# 1. Clone repository
+git clone https://github.com/dmorav1/MCP-Demo.git
+cd MCP-Demo
+
+# 2. Configure environment
+cp .env.example .env
+# Edit .env with your settings (default uses local embeddings)
+
+# 3. Start services
+./start-dev.sh all
+
+# 4. Verify health
+curl http://localhost:8000/health
+# Should show: "architecture": "new"
+
+# 5. Test ingestion
+curl -X POST http://localhost:8000/ingest \
+  -H "Content-Type: application/json" \
+  -d @sample-data.json
+
+# 6. Test search
+curl "http://localhost:8000/search?q=hello&top_k=5"
+```
+
+### Option 2: Using Legacy Architecture
+
+```bash
+# Set feature flag to false
+echo "USE_NEW_ARCHITECTURE=false" >> .env
+
+# Start services
+./start-dev.sh all
+```
+
+---
+
+## ⚙️ Configuration
+
+### Embedding Providers
+
+The system supports multiple embedding providers:
+
+| Provider | Cost | Speed | Quality | Use Case |
+|----------|------|-------|---------|----------|
+| **local** (sentence-transformers) | $0 | 50ms | Good | Development, cost-sensitive |
+| **openai** (text-embedding-ada-002) | $0.10/1M tokens | 100ms | Excellent | Production, best quality |
+| **fastembed** (FastEmbed library) | $0 | 40ms | Good | Fast inference, lightweight |
+| **langchain** (LangChain wrapper) | Varies | Varies | Varies | Future extensibility |
+
+**Configuration:**
+
+```bash
+# Local provider (default, free)
+EMBEDDING_PROVIDER=local
+EMBEDDING_MODEL=all-MiniLM-L6-v2
+EMBEDDING_DIMENSION=1536
+
+# OpenAI provider (paid, best quality)
+EMBEDDING_PROVIDER=openai
+EMBEDDING_MODEL=text-embedding-ada-002
+EMBEDDING_DIMENSION=1536
+OPENAI_API_KEY=sk-your-key-here
+```
+
+See [Configuration Guide](docs/Configuration-Guide.md) for complete reference.
+
+---
+
+## 🧪 Testing
+
+### Run All Tests
+
+```bash
+# Run all tests
+pytest tests/ -v
+
+# Run unit tests only
+pytest tests/unit/ -v
+
+# Run integration tests
+pytest tests/integration/ -v
+
+# Run with coverage
+pytest tests/ -v --cov=app --cov-report=html
+```
+
+### Run Specific Test Suites
+
+```bash
+# Repository adapter tests
+pytest tests/integration/database/ -v
+
+# Embedding service tests
+pytest tests/integration/embedding/ -v
+
+# End-to-end workflow tests
+pytest tests/integration/e2e/ -v
+
+# Performance benchmarks
+pytest tests/performance/ -v --benchmark-only
+```
+
+See [Testing Documentation](docs/Phase3-Migration-Guide.md#validation-and-testing) for more details.
+
+---
+
+## 🏗️ Project Structure
+
+```
+MCP-Demo/
+├── app/
+│   ├── domain/              # Phase 1: Domain layer
+│   │   ├── entities.py      # Core business entities
+│   │   ├── value_objects.py # Immutable value objects
+│   │   ├── repositories.py  # Port interfaces
+│   │   └── services.py      # Domain services
+│   │
+│   ├── application/         # Phase 2: Application layer
+│   │   ├── ingest_conversation.py    # Ingestion use case
+│   │   ├── search_conversations.py   # Search use case
+│   │   ├── rag_service.py            # RAG use case
+│   │   └── dto.py                    # Data transfer objects
+│   │
+│   ├── adapters/            # Phase 3: Adapter layer (NEW)
+│   │   └── outbound/
+│   │       ├── persistence/          # Database adapters
+│   │       │   ├── sqlalchemy_conversation_repository.py
+│   │       │   ├── sqlalchemy_chunk_repository.py
+│   │       │   ├── sqlalchemy_vector_search_repository.py
+│   │       │   └── sqlalchemy_embedding_repository.py
+│   │       │
+│   │       └── embeddings/           # Embedding service adapters
+│   │           ├── local_embedding_service.py
+│   │           ├── openai_embedding_service.py
+│   │           ├── fastembed_embedding_service.py
+│   │           ├── langchain_embedding_adapter.py
+│   │           └── factory.py
+│   │
+│   ├── infrastructure/      # Infrastructure layer
+│   │   ├── config.py        # Configuration management
+│   │   └── container.py     # DI container
+│   │
+│   ├── routers/             # API routes
+│   ├── main.py              # FastAPI application
+│   ├── mcp_server.py        # MCP protocol server
+│   └── models.py            # SQLAlchemy models (legacy)
+│
+├── docs/                    # Documentation
+│   ├── Phase3-Architecture.md
+│   ├── Phase3-Migration-Guide.md
+│   ├── Configuration-Guide.md
+│   ├── Operations-Guide.md
+│   ├── Phase3-Release-Notes.md
+│   └── architecture/        # Architecture diagrams
+│
+├── tests/                   # Test suite
+│   ├── unit/                # Unit tests
+│   ├── integration/         # Integration tests
+│   │   ├── database/        # Repository tests
+│   │   ├── embedding/       # Embedding service tests
+│   │   └── e2e/             # End-to-end tests
+│   └── performance/         # Performance benchmarks
+│
+├── scripts/                 # Utility scripts
+├── .env.example             # Configuration template
+├── docker-compose.yml       # Docker services
+├── requirements.txt         # Python dependencies
+└── README.md                # This file
+```
+
+---
+
+## 🤝 Contributing
+
+### Development Workflow
+
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature/my-feature`
+3. Make changes following the hexagonal architecture patterns
+4. Add tests for new functionality
+5. Run tests: `pytest tests/ -v`
+6. Commit changes: `git commit -m "Add feature"`
+7. Push to fork: `git push origin feature/my-feature`
+8. Open a pull request
+
+### Code Standards
+
+- Follow hexagonal architecture principles
+- Use dependency injection for new components
+- Add type hints to all functions
+- Write tests for all new code
+- Update documentation as needed
+- Follow existing code style
+
+---
+
+## 📋 Roadmap
+
+### ✅ Phase 1: Domain Layer (Complete)
+- Core business entities and value objects
+- Port interfaces for repositories and services
+- Domain services for business logic
+
+### ✅ Phase 2: Application Layer (Complete)
+- Use cases for ingestion, search, and RAG
+- Application-level orchestration
+- DTOs for request/response handling
+
+### ✅ Phase 3: Outbound Adapters (Complete)
+- Repository adapters for PostgreSQL + pgvector
+- Embedding service adapters (Local, OpenAI, FastEmbed, LangChain)
+- Dependency injection container
+- Configuration management
+
+### 🚧 Phase 4: Inbound Adapters (Planned)
+- API request/response adapters
+- Input validation adapters
+- Authentication adapters
+- Rate limiting
+
+### 📅 Phase 5: Advanced Features (Planned)
+- Redis caching layer
+- Circuit breaker pattern
+- Async embedding generation
+- Multi-database support
+
+### 📅 Phase 6: Production Hardening (Planned)
+- Distributed tracing (OpenTelemetry)
+- Enhanced monitoring and alerting
+- Performance optimizations
+- Security enhancements
+
+---
+
+## 📄 License
+
+This project is part of the MCP Demo repository. See the repository for license information.
+
+---
+
+## 🙋 Support
+
+- **Documentation:** See [docs/](docs/) directory
+- **Issues:** [GitHub Issues](https://github.com/dmorav1/MCP-Demo/issues)
+- **Discussions:** [GitHub Discussions](https://github.com/dmorav1/MCP-Demo/discussions)
+
+---
+
+**Status:** Phase 3 Complete ✅  
+**Last Updated:** November 7, 2025  
+**Maintained By:** Product Owner Agent
