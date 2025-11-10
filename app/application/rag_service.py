@@ -344,7 +344,20 @@ Answer (with source citations):"""
         
         try:
             # Sanitize query
-            query = self._sanitize_query(query)
+            try:
+                query = self._sanitize_query(query)
+            except ValueError as ve:
+                logger.error(f"Query sanitization failed: {ve}", exc_info=True)
+                return {
+                    "answer": f"Invalid query: {str(ve)}",
+                    "sources": [],
+                    "confidence": 0.0,
+                    "metadata": {
+                        "query": None,
+                        "error": str(ve),
+                        "latency_ms": (time.time() - start_time) * 1000
+                    }
+                }
             logger.info(f"Processing RAG query: '{query[:50]}...'")
             
             # Check cache
