@@ -1,0 +1,143 @@
+{
+  "description": "Evaluation dataset for RAG quality assessment",
+  "version": "1.0",
+  "test_cases": [
+    {
+      "id": "tc001",
+      "query": "What is Python?",
+      "context": [
+        "Python is a high-level, interpreted programming language created by Guido van Rossum.",
+        "Python emphasizes code readability with its use of significant indentation.",
+        "Python supports multiple programming paradigms including procedural, object-oriented, and functional programming."
+      ],
+      "ground_truth_answer": "Python is a high-level, interpreted programming language created by Guido van Rossum that emphasizes code readability and supports multiple programming paradigms.",
+      "expected_citations": [1, 2, 3],
+      "relevance_score": 1.0,
+      "category": "factual_question"
+    },
+    {
+      "id": "tc002",
+      "query": "Who created Python and when?",
+      "context": [
+        "Python was created by Guido van Rossum and first released in 1991.",
+        "Guido van Rossum was known as Python's Benevolent Dictator for Life until 2018.",
+        "Python 3.0 was released in 2008 and is not backward compatible with Python 2."
+      ],
+      "ground_truth_answer": "Python was created by Guido van Rossum and first released in 1991.",
+      "expected_citations": [1],
+      "relevance_score": 1.0,
+      "category": "factual_question"
+    },
+    {
+      "id": "tc003",
+      "query": "What are the advantages of using Python?",
+      "context": [
+        "Python has a simple and easy-to-learn syntax that makes it beginner-friendly.",
+        "Python has a vast ecosystem of libraries and frameworks for various applications.",
+        "Python is used in web development, data science, machine learning, automation, and more.",
+        "Python's interpreted nature allows for rapid prototyping and development."
+      ],
+      "ground_truth_answer": "Python advantages include simple and easy-to-learn syntax, vast ecosystem of libraries, versatility across applications like web development and data science, and rapid prototyping capabilities.",
+      "expected_citations": [1, 2, 3, 4],
+      "relevance_score": 1.0,
+      "category": "opinion_synthesis"
+    },
+    {
+      "id": "tc004",
+      "query": "How do I install Django?",
+      "context": [
+        "Python is a programming language known for its readability.",
+        "Many frameworks exist for Python including Flask and FastAPI.",
+        "Python 3 is the current version and Python 2 reached end of life in 2020."
+      ],
+      "ground_truth_answer": "The context does not contain information about installing Django.",
+      "expected_citations": [],
+      "relevance_score": 0.0,
+      "category": "out_of_context"
+    },
+    {
+      "id": "tc005",
+      "query": "Compare Python with Java",
+      "context": [
+        "Python is dynamically typed while Java is statically typed.",
+        "Python uses indentation for code blocks while Java uses curly braces.",
+        "Python is generally considered easier to learn than Java.",
+        "Java typically has better performance for CPU-intensive tasks.",
+        "Python excels in data science and machine learning applications."
+      ],
+      "ground_truth_answer": "Python is dynamically typed and uses indentation, making it easier to learn. Java is statically typed, uses curly braces, and typically has better performance for CPU-intensive tasks. Python excels in data science while Java is popular for enterprise applications.",
+      "expected_citations": [1, 2, 3, 4, 5],
+      "relevance_score": 1.0,
+      "category": "comparative_analysis"
+    },
+    {
+      "id": "tc006",
+      "query": "Is Python good for beginners?",
+      "context": [
+        "Python has a simple, English-like syntax that is easy for beginners to understand.",
+        "Python has extensive documentation and a large, helpful community.",
+        "Many universities use Python as their first programming language for teaching.",
+        "Python allows beginners to focus on programming concepts rather than syntax details."
+      ],
+      "ground_truth_answer": "Yes, Python is excellent for beginners because it has simple, English-like syntax, extensive documentation, a large helpful community, and is widely used in educational settings. It allows beginners to focus on programming concepts rather than complex syntax.",
+      "expected_citations": [1, 2, 3, 4],
+      "relevance_score": 1.0,
+      "category": "opinion_question"
+    },
+    {
+      "id": "tc007",
+      "query": "What is machine learning?",
+      "context": [
+        "Python is widely used for machine learning applications.",
+        "Popular Python libraries for ML include scikit-learn, TensorFlow, and PyTorch.",
+        "Python's simplicity makes it ideal for implementing machine learning algorithms."
+      ],
+      "ground_truth_answer": "The context mentions that Python is used for machine learning but doesn't define what machine learning is.",
+      "expected_citations": [1],
+      "relevance_score": 0.3,
+      "category": "partial_context"
+    },
+    {
+      "id": "tc008",
+      "query": "What are Python decorators?",
+      "context": [
+        "Python decorators are a powerful feature that allows you to modify function behavior.",
+        "Decorators use the @ symbol followed by the decorator name above a function definition.",
+        "Common use cases for decorators include logging, timing, and authentication.",
+        "Decorators are essentially functions that take another function as an argument."
+      ],
+      "ground_truth_answer": "Python decorators are functions that modify the behavior of other functions. They use the @ symbol and are placed above function definitions. Common use cases include logging, timing, and authentication.",
+      "expected_citations": [1, 2, 3, 4],
+      "relevance_score": 1.0,
+      "category": "technical_explanation"
+    },
+    {
+      "id": "tc009",
+      "query": "Why is Python slow?",
+      "context": [
+        "Python is an interpreted language, which makes it slower than compiled languages.",
+        "Python's dynamic typing adds overhead compared to statically typed languages.",
+        "However, Python's performance is often sufficient for most applications.",
+        "For performance-critical code, Python can use libraries written in C like NumPy."
+      ],
+      "ground_truth_answer": "Python can be slower than compiled languages because it's interpreted and uses dynamic typing. However, its performance is sufficient for most applications, and performance-critical code can use C-based libraries like NumPy.",
+      "expected_citations": [1, 2, 3, 4],
+      "relevance_score": 1.0,
+      "category": "critical_analysis"
+    },
+    {
+      "id": "tc010",
+      "query": "What is the future of Python?",
+      "context": [
+        "Python continues to grow in popularity, especially in data science and AI.",
+        "The Python community is actively developing new features and improvements.",
+        "Python 3.11 introduced significant performance improvements.",
+        "Python is expected to remain a dominant language in scientific computing."
+      ],
+      "ground_truth_answer": "Python's future looks strong with continued growth in data science and AI. The community actively develops new features, recent versions include performance improvements, and it's expected to remain dominant in scientific computing.",
+      "expected_citations": [1, 2, 3, 4],
+      "relevance_score": 1.0,
+      "category": "future_prediction"
+    }
+  ]
+}
