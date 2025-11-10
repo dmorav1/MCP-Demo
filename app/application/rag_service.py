@@ -44,7 +44,7 @@ _response_cache: Dict[str, Tuple[Dict[str, Any], datetime]] = {}
 def _get_cache_key(query: str, context_hash: str) -> str:
     """Generate cache key from query and context."""
     combined = f"{query}:{context_hash}"
-    return hashlib.md5(combined.encode()).hexdigest()
+    return hashlib.blake2b(combined.encode(), digest_size=16).hexdigest()
 
 
 def _clean_cache(max_age_seconds: int = 3600):
