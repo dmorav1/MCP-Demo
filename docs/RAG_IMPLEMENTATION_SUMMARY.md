@@ -77,7 +77,7 @@ Successfully implemented a comprehensive RAG (Retrieval-Augmented Generation) se
 
 #### Unit Tests (`tests/test_rag_service.py`)
 
-**Coverage: 41 tests across 10 test classes**
+**Coverage: 41 tests across 12 test classes**
 
 1. **TestRAGServiceInitialization** (2 tests)
    - Service initialization with/without config
