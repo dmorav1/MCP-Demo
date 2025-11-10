@@ -78,17 +78,7 @@ Question: {question}
 
 Answer (with source citations):"""
 
-    DEFAULT_CONVERSATIONAL_TEMPLATE = """You are a helpful AI assistant engaged in a conversation.
-Use the conversation history and the provided context to answer the current question.
-If you cannot find the answer in the context, say so - do not make up information.
-Always cite which source(s) you used by referencing [Source N] where N is the chunk number.
-
-Context:
-{context}
-
-Current Question: {question}
-
-Answer (with source citations):"""
+# (Removed unused DEFAULT_CONVERSATIONAL_TEMPLATE)
     
     def __init__(
         self,
