@@ -476,12 +476,12 @@ Answer (with source citations):"""
         except Exception as e:
             logger.error(f"RAG query failed: {e}", exc_info=True)
             return {
-                "answer": f"I encountered an error while processing your question: {str(e)}",
+                "answer": "I encountered an error while processing your question. Please try again later.",
                 "sources": [],
                 "confidence": 0.0,
                 "metadata": {
                     "query": query,
-                    "error": str(e),
+                    "error": "Internal error",
                     "latency_ms": (time.time() - start_time) * 1000
                 }
             }
