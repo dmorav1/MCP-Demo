@@ -6,7 +6,6 @@ actual LLM API calls.
 """
 import pytest
 from unittest.mock import Mock, AsyncMock, patch
-from datetime import datetime
 
 from app.application.rag_service import RAGService
 from app.application.dto import SearchResultDTO
