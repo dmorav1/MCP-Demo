@@ -82,7 +82,6 @@ class RAGConfig(BaseModel):
     score_threshold: float = Field(default=0.7, ge=0.0, le=1.0)
     
     # Chain configuration
-    chain_type: Literal["stuff", "map_reduce", "refine", "map_rerank"] = Field(default="stuff")
     enable_streaming: bool = Field(default=True)
     enable_conversation_memory: bool = Field(default=True)
     
