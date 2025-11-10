@@ -300,7 +300,6 @@ class TestAskMethod:
     async def test_ask_with_context_success(self, rag_service, mock_vector_search_repo, mock_embedding_service, sample_chunks):
         """Test successful ask with context."""
         # Setup mocks
-        from app.domain.entities import ConversationChunk
         from app.domain.value_objects import ChunkId, ConversationId, ChunkText, AuthorInfo, ChunkMetadata
         
         mock_chunks = []
