@@ -339,9 +339,6 @@ class TestAskMethod:
                 rag_service._get_llm = mock_get_llm
                 
                 # Create a simpler mock that returns the answer directly
-                async def mock_invoke(q):
-                    return "Python is a high-level programming language according to [Source 1]."
-                
                 # Patch at the point of chain creation
                 with patch.object(rag_service, 'ask') as mock_ask:
                     mock_ask.return_value = {
