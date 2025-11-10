@@ -10,7 +10,6 @@ from unittest.mock import Mock, AsyncMock, patch
 from app.application.rag_service import RAGService
 from app.application.dto import SearchResultDTO
 from app.domain.value_objects import Embedding
-from app.domain.entities import ConversationChunk
 
 
 @pytest.fixture
