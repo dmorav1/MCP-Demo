@@ -62,6 +62,47 @@ class LoggingConfig(BaseModel):
     log_file_path: Optional[str] = Field(default=None)
 
 
+class RAGConfig(BaseModel):
+    """RAG (Retrieval-Augmented Generation) configuration."""
+    # Provider selection
+    provider: Literal["openai", "anthropic", "local"] = Field(default="openai")
+    model: str = Field(default="gpt-3.5-turbo", description="Model name for the selected provider")
+    
+    # API keys
+    openai_api_key: Optional[str] = Field(default=None)
+    anthropic_api_key: Optional[str] = Field(default=None)
+    
+    # Generation parameters
+    temperature: float = Field(default=0.7, ge=0.0, le=2.0)
+    max_tokens: int = Field(default=2000, gt=0, le=8000)
+    top_p: float = Field(default=1.0, ge=0.0, le=1.0)
+    
+    # Retrieval configuration
+    top_k: int = Field(default=5, gt=0, le=50, description="Number of chunks to retrieve")
+    score_threshold: float = Field(default=0.7, ge=0.0, le=1.0)
+    
+    # Chain configuration
+    chain_type: Literal["stuff", "map_reduce", "refine", "map_rerank"] = Field(default="stuff")
+    enable_streaming: bool = Field(default=True)
+    enable_conversation_memory: bool = Field(default=True)
+    
+    # Context management
+    max_context_tokens: int = Field(default=3500, gt=0)
+    max_history_messages: int = Field(default=10, ge=0)
+    
+    # Performance and caching
+    enable_cache: bool = Field(default=True)
+    cache_ttl_seconds: int = Field(default=3600, gt=0)
+    
+    # Error handling
+    max_retries: int = Field(default=3, ge=0)
+    timeout_seconds: int = Field(default=60, gt=0)
+    
+    # Observability
+    enable_token_tracking: bool = Field(default=True)
+    enable_latency_tracking: bool = Field(default=True)
+
+
 class AppSettings(BaseSettings):
     """
     Main application settings.
@@ -92,6 +133,7 @@ class AppSettings(BaseSettings):
     search: SearchConfig = Field(default_factory=SearchConfig)
     chunking: ChunkingConfig = Field(default_factory=ChunkingConfig)
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
+    rag: RAGConfig = Field(default_factory=RAGConfig)
     
     # Legacy compatibility fields (for backward compatibility with existing code)
     database_url: Optional[str] = Field(default=None)
@@ -175,3 +217,8 @@ def get_chunking_config() -> ChunkingConfig:
 def get_logging_config() -> LoggingConfig:
     """Get logging configuration."""
     return settings.logging
+
+
+def get_rag_config() -> RAGConfig:
+    """Get RAG configuration."""
+    return settings.rag
