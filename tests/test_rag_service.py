@@ -5,12 +5,12 @@ Tests the RAG service implementation with mocked dependencies to avoid
 actual LLM API calls.
 """
 import pytest
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
+from unittest.mock import Mock, AsyncMock, patch
 from datetime import datetime
 
 from app.application.rag_service import RAGService
 from app.application.dto import SearchResultDTO
-from app.domain.value_objects import Embedding, RelevanceScore
+from app.domain.value_objects import Embedding
 from app.domain.entities import ConversationChunk
 
 
