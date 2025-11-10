@@ -561,7 +561,7 @@ class TestLLMProviders:
         mock_config.provider = "local"
         
         with patch('langchain_community.llms.FakeListLLM') as mock_fake_llm:
-            llm = rag_service._get_llm()
+            rag_service._get_llm()
             mock_fake_llm.assert_called_once()
     
     def test_get_llm_no_config_raises_error(self, mock_vector_search_repo, mock_embedding_service):
