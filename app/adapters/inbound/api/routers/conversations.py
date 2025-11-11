@@ -178,7 +178,8 @@ async def ingest_conversation(
     "",
     response_model=List[ConversationResponse],
     summary="List conversations",
-    description="List all conversations with pagination."
+    description="List all conversations with pagination.",
+    operation_id="list_conversations_v2"
 )
 async def list_conversations(
     skip: int = Query(0, ge=0, description="Number of records to skip"),
@@ -227,7 +228,8 @@ async def list_conversations(
     "/{conversation_id}",
     response_model=ConversationDetailResponse,
     summary="Get conversation by ID",
-    description="Retrieve a specific conversation with all its chunks."
+    description="Retrieve a specific conversation with all its chunks.",
+    operation_id="get_conversation_v2"
 )
 async def get_conversation(
     conversation_id: int,
@@ -289,7 +291,8 @@ async def get_conversation(
     "/{conversation_id}",
     status_code=status.HTTP_200_OK,
     summary="Delete conversation",
-    description="Delete a conversation and all its chunks."
+    description="Delete a conversation and all its chunks.",
+    operation_id="delete_conversation_v2"
 )
 async def delete_conversation(
     conversation_id: int,

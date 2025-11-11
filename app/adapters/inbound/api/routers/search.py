@@ -87,7 +87,8 @@ class SearchResponse(BaseModel):
     response_model=SearchResponse,
     status_code=status.HTTP_200_OK,
     summary="Search conversations",
-    description="Perform semantic search on conversation chunks using vector similarity."
+    description="Perform semantic search on conversation chunks using vector similarity.",
+    operation_id="search_conversations_post"
 )
 async def search_conversations(
     request: SearchRequest,
@@ -165,7 +166,8 @@ async def search_conversations(
     response_model=SearchResponse,
     status_code=status.HTTP_200_OK,
     summary="Search conversations (GET)",
-    description="Perform semantic search using query parameters (simplified version)."
+    description="Perform semantic search using query parameters (simplified version).",
+    operation_id="search_conversations_get_v2"
 )
 async def search_conversations_get(
     q: str = Query(..., description="Search query text"),
