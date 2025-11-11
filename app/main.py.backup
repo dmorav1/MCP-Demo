@@ -11,12 +11,6 @@ from app.routers.ingest import router as ingest_router
 from app.services import ContextFormatter
 from app.logging_config import setup_logging, get_logger
 
-# Import new hexagonal architecture routers
-from app.adapters.inbound.api.routers.conversations import router as conversations_router
-from app.adapters.inbound.api.routers.search import router as search_router
-from app.adapters.inbound.api.routers.rag import router as rag_router
-from app.adapters.inbound.api.error_handlers import register_error_handlers
-
 # Import DI container
 from app.infrastructure.container import initialize_container, get_container
 from app.infrastructure.config import get_settings
@@ -104,18 +98,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Register error handlers for domain exceptions
-register_error_handlers(app)
-
-# Mount new hexagonal architecture routers
-if USE_NEW_ARCHITECTURE:
-    app.include_router(conversations_router)
-    app.include_router(search_router)
-    app.include_router(rag_router)
-    logger.info("✅ New hexagonal architecture routers mounted")
-
-# Mount legacy routers (with deprecation warnings)
-app.include_router(ingest_router, tags=["ingest", "legacy"])
+# Mount routers
+app.include_router(ingest_router, tags=["ingest"])
 if CHAT_ROUTER_AVAILABLE:
     app.include_router(chat_router, tags=["chat"])
     logger.info("✅ Chat gateway router mounted")
@@ -126,47 +110,17 @@ logger.info("✅ FastAPI application initialized")
 @app.get("/", tags=["root"])
 async def read_root():
     """Root endpoint with API information."""
-    endpoints = {
-        "health": "/health",
-        "docs": "/docs",
-    }
-    
-    if USE_NEW_ARCHITECTURE:
-        endpoints.update({
-            "conversations": {
-                "ingest": "POST /conversations/ingest",
-                "list": "GET /conversations",
-                "get": "GET /conversations/{id}",
-                "delete": "DELETE /conversations/{id}"
-            },
-            "search": {
-                "post": "POST /search",
-                "get": "GET /search?q={query}"
-            },
-            "rag": {
-                "ask": "POST /rag/ask",
-                "stream": "POST /rag/ask-stream",
-                "health": "GET /rag/health"
-            }
-        })
-        endpoints["ingest"] = "/ingest (DEPRECATED - use POST /conversations/ingest)"
-        endpoints["legacy_search"] = "/search (DEPRECATED - use POST /search or GET /search)"
-        endpoints["legacy_conversations"] = "/conversations (DEPRECATED - use new conversation endpoints)"
-    else:
-        endpoints.update({
-            "ingest": "/ingest",
-            "search": "/search",
-            "conversations": "/conversations",
-        })
-    
-    if CHAT_ROUTER_AVAILABLE:
-        endpoints["chat"] = "/chat/ask"
-    
     return {
         "message": "MCP Conversational Data Server",
         "version": "1.0.0",
-        "architecture": "hexagonal" if USE_NEW_ARCHITECTURE else "legacy",
-        "endpoints": endpoints
+        "endpoints": {
+            "health": "/health",
+            "docs": "/docs",
+            "ingest": "/ingest",
+            "search": "/search",
+            "conversations": "/conversations",
+            "chat": "/chat/ask" if CHAT_ROUTER_AVAILABLE else "not available"
+        }
     }
 
 
@@ -247,12 +201,7 @@ async def search_conversations(
     """
     Search for relevant conversation chunks using vector similarity.
     Returns chunks ranked by relevance with metadata.
-    
-    DEPRECATED: This endpoint is deprecated. Use POST /search or GET /search instead.
     """
-    if USE_NEW_ARCHITECTURE:
-        logger.warning("⚠️  Legacy /search endpoint called - use POST /search or GET /search instead")
-    
     logger.info(f"🔍 Search request: query='{q}', top_k={top_k}")
     
     try:
@@ -283,12 +232,7 @@ async def list_conversations(
     """
     List all conversations with pagination.
     Returns conversation metadata and statistics.
-    
-    DEPRECATED: This endpoint is deprecated. Use GET /conversations instead.
     """
-    if USE_NEW_ARCHITECTURE:
-        logger.warning("⚠️  Legacy GET /conversations endpoint called - use new conversation router instead")
-    
     logger.info(f"📋 List conversations: skip={skip}, limit={limit}")
     
     try:
@@ -312,12 +256,7 @@ async def get_conversation(
 ):
     """
     Get a specific conversation by ID with all chunks.
-    
-    DEPRECATED: This endpoint is deprecated. Use GET /conversations/{id} on the new router instead.
     """
-    if USE_NEW_ARCHITECTURE:
-        logger.warning(f"⚠️  Legacy GET /conversations/{conversation_id} endpoint called - use new conversation router instead")
-    
     logger.info(f"🔍 Get conversation: id={conversation_id}")
     
     try:
@@ -349,12 +288,7 @@ async def delete_conversation(
 ):
     """
     Delete a conversation and all its chunks.
-    
-    DEPRECATED: This endpoint is deprecated. Use DELETE /conversations/{id} on the new router instead.
     """
-    if USE_NEW_ARCHITECTURE:
-        logger.warning(f"⚠️  Legacy DELETE /conversations/{conversation_id} endpoint called - use new conversation router instead")
-    
     logger.info(f"🗑️ Delete conversation: id={conversation_id}")
     
     try:
