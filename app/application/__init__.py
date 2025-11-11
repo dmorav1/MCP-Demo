@@ -17,11 +17,17 @@ from .dto import (
     SearchConversationRequest,
     SearchConversationResponse,
     ConversationMetadataDTO,
-    SearchResultDTO
+    SearchResultDTO,
+    GetConversationRequest,
+    GetConversationResponse,
+    DeleteConversationRequest,
+    DeleteConversationResponse
 )
 
 from .ingest_conversation import IngestConversationUseCase
 from .search_conversations import SearchConversationsUseCase
+from .get_conversation import GetConversationUseCase, ListConversationsUseCase
+from .delete_conversation import DeleteConversationUseCase
 
 __all__ = [
     # DTOs
@@ -31,7 +37,14 @@ __all__ = [
     "SearchConversationResponse",
     "ConversationMetadataDTO",
     "SearchResultDTO",
+    "GetConversationRequest",
+    "GetConversationResponse",
+    "DeleteConversationRequest",
+    "DeleteConversationResponse",
     # Use Cases
     "IngestConversationUseCase",
     "SearchConversationsUseCase",
+    "GetConversationUseCase",
+    "ListConversationsUseCase",
+    "DeleteConversationUseCase",
 ]

@@ -244,13 +244,19 @@ class ApplicationServiceProvider(ServiceProvider):
         # Import here to avoid circular dependencies
         from app.application import (
             IngestConversationUseCase,
-            SearchConversationsUseCase
+            SearchConversationsUseCase,
+            GetConversationUseCase,
+            ListConversationsUseCase,
+            DeleteConversationUseCase
         )
         from app.application.rag_service import RAGService, RAGConfig
         
         # Register use cases as transient (new instance per request)
         container.register_transient(IngestConversationUseCase)
         container.register_transient(SearchConversationsUseCase)
+        container.register_transient(GetConversationUseCase)
+        container.register_transient(ListConversationsUseCase)
+        container.register_transient(DeleteConversationUseCase)
         
         # Register RAG service (stub for Phase 4)
         container.register_singleton(RAGService)
