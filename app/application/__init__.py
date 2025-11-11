@@ -21,7 +21,9 @@ from .dto import (
     GetConversationRequest,
     GetConversationResponse,
     DeleteConversationRequest,
-    DeleteConversationResponse
+    DeleteConversationResponse,
+    MessageDTO,
+    ConversationChunkDTO
 )
 
 from .ingest_conversation import IngestConversationUseCase
@@ -41,6 +43,8 @@ __all__ = [
     "GetConversationResponse",
     "DeleteConversationRequest",
     "DeleteConversationResponse",
+    "MessageDTO",
+    "ConversationChunkDTO",
     # Use Cases
     "IngestConversationUseCase",
     "SearchConversationsUseCase",
