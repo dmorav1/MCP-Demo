@@ -249,7 +249,8 @@ class ApplicationServiceProvider(ServiceProvider):
             ListConversationsUseCase,
             DeleteConversationUseCase
         )
-        from app.application.rag_service import RAGService, RAGConfig
+        from app.application.rag_service import RAGService
+        from app.infrastructure.config import RAGConfig
         
         # Register use cases as transient (new instance per request)
         container.register_transient(IngestConversationUseCase)
