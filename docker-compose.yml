@@ -33,6 +33,16 @@ services:
       EMBEDDING_MODEL: text-embedding-ada-002
       EMBEDDING_DIMENSION: 1536
       FASTAPI_BASE_URL: http://mcp-backend:8000
+      # Observability settings
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      USE_JSON_LOGS: ${USE_JSON_LOGS:-true}
+      LOG_FILE: logs/mcp-backend.log
+      JAEGER_HOST: jaeger
+      JAEGER_PORT: 6831
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-production}
+      SENTRY_TRACES_SAMPLE_RATE: ${SENTRY_TRACES_SAMPLE_RATE:-0.1}
+      SLOW_REQUEST_THRESHOLD: ${SLOW_REQUEST_THRESHOLD:-1.0}
     depends_on:
       postgres:
         condition: service_healthy
@@ -123,3 +133,58 @@ networks:
 volumes:
   postgres_data:
     driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+
+  # Observability services
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: mcp-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./monitoring/prometheus-alerts.yml:/etc/prometheus/alerts.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.enable-lifecycle'
+    networks:
+      - mcp-network
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: mcp-grafana
+    ports:
+      - "3030:3000"
+    volumes:
+      - ./monitoring/grafana:/etc/grafana/provisioning/dashboards
+      - grafana_data:/var/lib/grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SERVER_ROOT_URL=http://localhost:3030
+    networks:
+      - mcp-network
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    container_name: mcp-jaeger
+    ports:
+      - "16686:16686"  # Jaeger UI
+      - "6831:6831/udp"  # Jaeger agent
+      - "14268:14268"  # Jaeger collector
+      - "4317:4317"  # OTLP gRPC
+      - "4318:4318"  # OTLP HTTP
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+    networks:
+      - mcp-network
+    restart: unless-stopped
