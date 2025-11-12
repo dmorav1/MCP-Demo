@@ -18,6 +18,7 @@ from app.application.dto import (
 )
 from sqlalchemy.orm import Session
 from app import models
+from app.observability import metrics
 
 
 logger = logging.getLogger(__name__)
@@ -152,6 +153,10 @@ async def ingest_conversation(
     
     # Execute use case
     result = await use_case.execute(app_request)
+    
+    # Track metrics
+    if result.success:
+        metrics.conversations_ingested.inc()
     
     # Convert application DTO to API response
     metadata_dict = None

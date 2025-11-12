@@ -12,6 +12,7 @@ import json
 
 from app.adapters.inbound.api.dependencies import get_rag_service
 from app.application.rag_service import RAGService
+from app.observability import metrics
 
 
 logger = logging.getLogger(__name__)
@@ -101,6 +102,9 @@ async def ask_question(
         top_k=request.top_k,
         conversation_id=request.conversation_id
     )
+    
+    # Track metrics
+    metrics.rag_queries.labels(streaming="false").inc()
     
     # Convert sources to API format
     sources = [

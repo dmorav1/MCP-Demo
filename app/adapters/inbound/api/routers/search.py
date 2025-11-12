@@ -15,6 +15,7 @@ from app.application.dto import (
     SearchConversationRequest, SearchConversationResponse,
     SearchFilters, SearchResultDTO
 )
+from app.observability import metrics
 
 
 logger = logging.getLogger(__name__)
@@ -134,6 +135,9 @@ async def search_conversations(
     
     # Execute use case
     result = await use_case.execute(app_request)
+    
+    # Track metrics
+    metrics.searches_performed.inc()
     
     # Convert application DTOs to API response
     api_results = [
