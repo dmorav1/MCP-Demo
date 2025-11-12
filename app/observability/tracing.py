@@ -10,10 +10,21 @@ from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
 from opentelemetry.sdk.resources import Resource, SERVICE_NAME, SERVICE_VERSION
-from opentelemetry.exporter.jaeger.thrift import JaegerExporter
-from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
+
+# Optional exporters
+try:
+    from opentelemetry.exporter.jaeger.thrift import JaegerExporter
+    JAEGER_AVAILABLE = True
+except ImportError:
+    JAEGER_AVAILABLE = False
+
+try:
+    from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+    OTLP_AVAILABLE = True
+except ImportError:
+    OTLP_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +65,7 @@ def setup_tracing(
     exporters_configured = False
     
     # Jaeger exporter
-    if jaeger_host:
+    if jaeger_host and JAEGER_AVAILABLE:
         try:
             jaeger_exporter = JaegerExporter(
                 agent_host_name=jaeger_host,
@@ -65,9 +76,11 @@ def setup_tracing(
             exporters_configured = True
         except Exception as e:
             logger.warning(f"Failed to configure Jaeger exporter: {e}")
+    elif jaeger_host and not JAEGER_AVAILABLE:
+        logger.warning("Jaeger exporter not available (install opentelemetry-exporter-jaeger)")
     
     # OTLP exporter
-    if otlp_endpoint:
+    if otlp_endpoint and OTLP_AVAILABLE:
         try:
             otlp_exporter = OTLPSpanExporter(endpoint=otlp_endpoint)
             provider.add_span_processor(BatchSpanProcessor(otlp_exporter))
@@ -75,6 +88,8 @@ def setup_tracing(
             exporters_configured = True
         except Exception as e:
             logger.warning(f"Failed to configure OTLP exporter: {e}")
+    elif otlp_endpoint and not OTLP_AVAILABLE:
+        logger.warning("OTLP exporter not available (install opentelemetry-exporter-otlp)")
     
     # Console exporter for debugging
     if console_export and not exporters_configured:
