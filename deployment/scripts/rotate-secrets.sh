@@ -28,6 +28,16 @@ aws secretsmanager put-secret-value \
   --secret-id "$SECRET_NAME" \
   --secret-string "$NEW_SECRET"
 
+# Verify the secret was updated successfully
+RETRIEVED_SECRET=$(aws secretsmanager get-secret-value \
+  --secret-id "$SECRET_NAME" \
+  --query 'SecretString' \
+  --output text)
+
+if [ "$RETRIEVED_SECRET" != "$NEW_SECRET" ]; then
+    echo "❌ Secret verification failed: retrieved value does not match new value"
+    exit 2
+fi
 echo "✅ Secret rotated successfully"
 echo ""
 echo "Next steps:"
