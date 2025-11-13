@@ -4,9 +4,14 @@
 set -e
 
 RESTORE_TYPE="${1:-snapshot}"  # snapshot or pitr
-INSTANCE_ID="${DB_INSTANCE_ID:-mcp-demo-prod}"
+INSTANCE_ID="${DB_INSTANCE_ID}"
 NEW_INSTANCE="${NEW_INSTANCE_ID:-mcp-demo-restored-$(date +%Y%m%d-%H%M%S)}"
 
+if [ -z "$INSTANCE_ID" ]; then
+    echo "ERROR: DB_INSTANCE_ID environment variable must be set to the source instance ID."
+    echo "Usage: DB_INSTANCE_ID=<source-instance-id> $0 {snapshot|pitr} <args>"
+    exit 1
+fi
 if [ "$RESTORE_TYPE" = "snapshot" ]; then
     SNAPSHOT_ID="${2}"
     if [ -z "$SNAPSHOT_ID" ]; then
