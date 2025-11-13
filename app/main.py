@@ -9,6 +9,7 @@ from contextlib import asynccontextmanager
 from app import models, schemas, crud
 from app.database import engine, get_db, test_connection
 from app.routers.ingest import router as ingest_router
+from app.routers.cache import router as cache_router
 from app.services import ContextFormatter
 
 # Observability imports
@@ -183,6 +184,10 @@ if USE_NEW_ARCHITECTURE:
     app.include_router(search_router)
     app.include_router(rag_router)
     logger.info("✅ New hexagonal architecture routers mounted")
+
+# Mount cache management router
+app.include_router(cache_router, tags=["cache"])
+logger.info("✅ Cache management router mounted")
 
 # Mount legacy routers (with deprecation warnings)
 app.include_router(ingest_router, tags=["ingest", "legacy"])
