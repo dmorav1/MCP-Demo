@@ -1,7 +1,7 @@
 #!/bin/bash
 # smoke-tests.sh - Quick validation of deployed application
 
-set -e
+set -euo pipefail
 
 API_URL="${1:-http://localhost:8000}"
 FAILED=0
