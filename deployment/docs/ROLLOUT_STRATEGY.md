@@ -2,7 +2,7 @@
 
 **Project:** MCP RAG Demo  
 **Version:** 1.0.0  
-**Last Updated:** 2025-11-13
+**Last Updated:** 2025-11-01
 
 ## Overview
 
