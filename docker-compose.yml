@@ -19,6 +19,22 @@ services:
     networks:
       - mcp-network
 
+  redis:
+    image: redis:7-alpine
+    container_name: mcp-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - mcp-network
+
   mcp-backend:
     build: 
       context: .
@@ -33,6 +49,15 @@ services:
       EMBEDDING_MODEL: text-embedding-ada-002
       EMBEDDING_DIMENSION: 1536
       FASTAPI_BASE_URL: http://mcp-backend:8000
+      # Cache settings
+      CACHE_ENABLED: ${CACHE_ENABLED:-true}
+      CACHE_BACKEND: ${CACHE_BACKEND:-redis}
+      CACHE_REDIS_URL: redis://redis:6379
+      CACHE_DEFAULT_TTL: ${CACHE_DEFAULT_TTL:-3600}
+      CACHE_MAX_SIZE: ${CACHE_MAX_SIZE:-1000}
+      EMBEDDING_CACHE_TTL: ${EMBEDDING_CACHE_TTL:-86400}
+      SEARCH_CACHE_TTL: ${SEARCH_CACHE_TTL:-1800}
+      LLM_CACHE_TTL: ${LLM_CACHE_TTL:-3600}
       # Observability settings
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       USE_JSON_LOGS: ${USE_JSON_LOGS:-true}
@@ -45,6 +70,8 @@ services:
       SLOW_REQUEST_THRESHOLD: ${SLOW_REQUEST_THRESHOLD:-1.0}
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     volumes:
       - ./app:/app/app
@@ -132,6 +159,8 @@ networks:
 
 volumes:
   postgres_data:
+    driver: local
+  redis_data:
     driver: local
   prometheus_data:
     driver: local
