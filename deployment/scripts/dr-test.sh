@@ -53,6 +53,9 @@ TEST_ENDPOINT=$(aws rds describe-db-instances \
 echo "Test endpoint: $TEST_ENDPOINT"
 
 # Basic connectivity test
+# NOTE: Using PGPASSWORD environment variable is a common pattern but exposes the password
+# in the process list. For production, consider using a .pgpass file or AWS IAM authentication
+# for RDS for improved security.
 if command -v psql &> /dev/null; then
     PGPASSWORD="$DB_PASSWORD" psql -h "$TEST_ENDPOINT" -U mcp_admin -d mcp_db -c "
     SELECT 

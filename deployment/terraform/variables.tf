@@ -147,8 +147,16 @@ variable "domain_name" {
 variable "certificate_arn" {
   description = "ARN of ACM certificate for HTTPS"
   type        = string
+<<<<<<< HEAD
   validation {
     condition     = can(regex("^arn:aws:acm:[^:]+:[0-9]+:certificate/[a-zA-Z0-9-]+$", var.certificate_arn))
     error_message = "You must provide a valid ACM certificate ARN (e.g., arn:aws:acm:region:account-id:certificate/certificate-id)."
+=======
+  default     = ""
+  
+  validation {
+    condition     = var.certificate_arn == "" || can(regex("^arn:aws:acm:[^:]+:[0-9]+:certificate/[a-zA-Z0-9-]+$", var.certificate_arn))
+    error_message = "You must provide a valid ACM certificate ARN (e.g., arn:aws:acm:region:account-id:certificate/certificate-id) or leave it empty."
+>>>>>>> ecdb768 (Apply all review comment suggestions from PR #38)
   }
 }
