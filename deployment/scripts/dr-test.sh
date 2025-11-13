@@ -57,14 +57,40 @@ echo "Test endpoint: $TEST_ENDPOINT"
 # in the process list. For production, consider using a .pgpass file or AWS IAM authentication
 # for RDS for improved security.
 if command -v psql &> /dev/null; then
-    PGPASSWORD="$DB_PASSWORD" psql -h "$TEST_ENDPOINT" -U mcp_admin -d mcp_db -c "
-    SELECT 
-        'DR Test' AS test_name,
-        current_timestamp AS test_time,
-        version() AS pg_version,
-        (SELECT count(*) FROM conversations) AS conversation_count,
-        (SELECT max(created_at) FROM conversations) AS latest_data
-    ;" || echo "⚠️  Database query failed, but instance is available"
+    # Use AWS IAM authentication for RDS if available
+    if command -v aws &> /dev/null && [ -n "$USE_IAM_AUTH" ]; then
+        echo "Using AWS IAM authentication..."
+        export PGPASSWORD=$(aws rds generate-db-auth-token \
+            --hostname "$TEST_ENDPOINT" \
+            --port 5432 \
+            --username mcp_admin \
+            --region "${AWS_REGION:-us-east-1}")
+        psql -h "$TEST_ENDPOINT" -U mcp_admin -d mcp_db -c "
+        SELECT 
+            'DR Test' AS test_name,
+            current_timestamp AS test_time,
+            version() AS pg_version,
+            (SELECT count(*) FROM conversations) AS conversation_count,
+            (SELECT max(created_at) FROM conversations) AS latest_data
+        ;" || echo "⚠️  Database query failed, but instance is available"
+        unset PGPASSWORD
+    # Fallback to .pgpass file if it exists
+    elif [ -f "$HOME/.pgpass" ]; then
+        echo "Using .pgpass file for authentication..."
+        psql -h "$TEST_ENDPOINT" -U mcp_admin -d mcp_db -c "
+        SELECT 
+            'DR Test' AS test_name,
+            current_timestamp AS test_time,
+            version() AS pg_version,
+            (SELECT count(*) FROM conversations) AS conversation_count,
+            (SELECT max(created_at) FROM conversations) AS latest_data
+        ;" || echo "⚠️  Database query failed, but instance is available"
+    else
+        echo "⚠️  No secure authentication method available (IAM or .pgpass)"
+        echo "    Set USE_IAM_AUTH=1 to use IAM authentication, or"
+        echo "    Create ~/.pgpass file with: hostname:port:database:username:password"
+        echo "    Skipping connectivity test"
+    fi
 else
     echo "⚠️  psql not installed, skipping connectivity test"
 fi

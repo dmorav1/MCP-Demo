@@ -136,6 +136,123 @@ ALTER SYSTEM SET effective_cache_size = '12GB';
 SELECT pg_reload_conf();
 ```
 
+### Database Authentication Security
+
+**AWS IAM Authentication** (Recommended):
+
+AWS RDS supports IAM database authentication, which provides enhanced security by using short-lived authentication tokens instead of static passwords.
+
+**Benefits**:
+- No password storage or management required
+- Tokens are valid for 15 minutes only
+- Integrates with AWS IAM for access control
+- Passwords not exposed in environment variables or process lists
+- Automatic credential rotation
+
+**Configuration**:
+```terraform
+resource "aws_db_instance" "postgres" {
+  # ... other configuration ...
+  
+  # Enable IAM database authentication
+  iam_database_authentication_enabled = true
+}
+
+# Create IAM policy for database access
+resource "aws_iam_policy" "rds_iam_auth" {
+  name        = "mcp-demo-rds-iam-auth"
+  description = "Allow IAM authentication to RDS"
+  
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "rds-db:connect"
+        ]
+        Resource = [
+          "arn:aws:rds-db:us-east-1:${data.aws_caller_identity.current.account_id}:dbuser:${aws_db_instance.postgres.resource_id}/mcp_admin"
+        ]
+      }
+    ]
+  })
+}
+```
+
+**Application Usage**:
+```python
+import boto3
+import psycopg2
+
+def get_iam_db_connection():
+    """Create database connection using IAM authentication"""
+    rds_client = boto3.client('rds', region_name='us-east-1')
+    
+    # Generate authentication token (valid for 15 minutes)
+    token = rds_client.generate_db_auth_token(
+        DBHostname='mcp-demo-prod.abc123.us-east-1.rds.amazonaws.com',
+        Port=5432,
+        DBUsername='mcp_admin',
+        Region='us-east-1'
+    )
+    
+    # Connect using the token as password
+    conn = psycopg2.connect(
+        host='mcp-demo-prod.abc123.us-east-1.rds.amazonaws.com',
+        port=5432,
+        user='mcp_admin',
+        password=token,
+        database='mcp_db',
+        sslmode='require'
+    )
+    
+    return conn
+```
+
+**Shell Script Usage**:
+```bash
+# Generate authentication token
+export PGPASSWORD=$(aws rds generate-db-auth-token \
+    --hostname mcp-demo-prod.abc123.us-east-1.rds.amazonaws.com \
+    --port 5432 \
+    --username mcp_admin \
+    --region us-east-1)
+
+# Connect using the token
+psql -h mcp-demo-prod.abc123.us-east-1.rds.amazonaws.com \
+     -U mcp_admin \
+     -d mcp_db
+
+# Clear the token immediately after use
+unset PGPASSWORD
+```
+
+**Alternative: .pgpass File**:
+
+For environments where IAM authentication is not available, use a `.pgpass` file for secure password storage:
+
+```bash
+# Create .pgpass file with restricted permissions
+cat > ~/.pgpass << EOF
+hostname:5432:database:username:password
+EOF
+
+# Set proper permissions (required by PostgreSQL)
+chmod 0600 ~/.pgpass
+
+# PostgreSQL will automatically use credentials from .pgpass
+psql -h hostname -U username -d database
+```
+
+**Security Best Practices**:
+1. Always prefer IAM authentication over static passwords
+2. Never pass passwords via command-line arguments (visible in process lists)
+3. Avoid using `PGPASSWORD` environment variable except for IAM tokens
+4. If using `.pgpass`, ensure file permissions are set to 0600
+5. Use SSL/TLS for all database connections
+6. Rotate credentials regularly (IAM tokens auto-expire in 15 minutes)
+
 ### Read Replicas
 
 **Configuration**:
@@ -490,12 +607,21 @@ TEST_ENDPOINT=$(aws rds describe-db-instances \
   --query 'DBInstances[0].Endpoint.Address' \
   --output text)
 
-PGPASSWORD=test_password psql -h "${TEST_ENDPOINT}" -U mcp_admin -d mcp_db -c "
+# Use AWS IAM authentication for secure database access
+export PGPASSWORD=$(aws rds generate-db-auth-token \
+    --hostname "${TEST_ENDPOINT}" \
+    --port 5432 \
+    --username mcp_admin \
+    --region us-east-1)
+
+psql -h "${TEST_ENDPOINT}" -U mcp_admin -d mcp_db -c "
 SELECT 'DR Test Successful' AS status,
        count(*) AS conversation_count,
        max(created_at) AS latest_conversation
 FROM conversations;
 "
+
+unset PGPASSWORD
 
 # 4. Cleanup
 echo "Cleaning up test instance"
