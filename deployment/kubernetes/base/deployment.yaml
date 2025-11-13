@@ -42,6 +42,7 @@ spec:
               topologyKey: topology.kubernetes.io/zone
       containers:
         - name: mcp-backend
+          # NOTE: The REGISTRY and TAG placeholders below must be replaced by the CI/CD pipeline or Kustomize overlays during deployment.
           image: REGISTRY/mcp-backend:TAG
           imagePullPolicy: IfNotPresent
           ports:
