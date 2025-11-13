@@ -3,13 +3,27 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from typing import List
 import os
+import sys
 from contextlib import asynccontextmanager
 
 from app import models, schemas, crud
 from app.database import engine, get_db, test_connection
 from app.routers.ingest import router as ingest_router
 from app.services import ContextFormatter
-from app.logging_config import setup_logging, get_logger
+
+# Observability imports
+from app.observability import (
+    setup_structured_logging,
+    get_logger,
+    metrics,
+    setup_tracing,
+    instrument_fastapi,
+    instrument_sqlalchemy,
+    setup_error_tracking,
+    HealthChecker,
+)
+from app.observability.middleware import ObservabilityMiddleware, PerformanceLoggingMiddleware
+from app.observability.metrics import MetricsMiddleware, metrics_endpoint
 
 # Import new hexagonal architecture routers
 from app.adapters.inbound.api.routers.conversations import router as conversations_router
@@ -29,9 +43,40 @@ except ImportError:
     CHAT_ROUTER_AVAILABLE = False
     chat_router = None
 
-# Setup logging first
-setup_logging()
+# Setup observability
+log_level = os.getenv("LOG_LEVEL", "INFO")
+use_json_logs = os.getenv("USE_JSON_LOGS", "true").lower() in ("true", "1", "yes")
+log_file = os.getenv("LOG_FILE", "logs/mcp-backend.log")
+
+setup_structured_logging(
+    log_level=log_level,
+    use_json=use_json_logs,
+    log_file=log_file
+)
 logger = get_logger(__name__)
+
+# Setup tracing
+jaeger_host = os.getenv("JAEGER_HOST")
+otlp_endpoint = os.getenv("OTLP_ENDPOINT")
+console_tracing = os.getenv("ENABLE_CONSOLE_TRACING", "false").lower() in ("true", "1", "yes")
+
+if jaeger_host or otlp_endpoint or console_tracing:
+    setup_tracing(
+        jaeger_host=jaeger_host,
+        otlp_endpoint=otlp_endpoint,
+        console_export=console_tracing
+    )
+
+# Setup error tracking
+sentry_dsn = os.getenv("SENTRY_DSN")
+sentry_env = os.getenv("SENTRY_ENVIRONMENT", "development")
+if sentry_dsn:
+    setup_error_tracking(
+        dsn=sentry_dsn,
+        environment=sentry_env,
+        traces_sample_rate=float(os.getenv("SENTRY_TRACES_SAMPLE_RATE", "0.1")),
+        profiles_sample_rate=float(os.getenv("SENTRY_PROFILES_SAMPLE_RATE", "0.1"))
+    )
 
 logger.info("🚀 Initializing FastAPI application...")
 
@@ -80,6 +125,19 @@ async def lifespan(app: FastAPI):
             logger.error(f"❌ Failed to initialize DI container: {e}")
             raise
     
+    # Instrument SQLAlchemy for tracing
+    try:
+        instrument_sqlalchemy(engine)
+    except Exception as e:
+        logger.warning(f"Failed to instrument SQLAlchemy: {e}")
+    
+    # Set application info in metrics
+    metrics.app_info.info({
+        'version': '1.0.0',
+        'architecture': 'hexagonal' if USE_NEW_ARCHITECTURE else 'legacy',
+        'python_version': os.sys.version
+    })
+    
     logger.info("✅ Application startup complete")
     
     yield
@@ -103,6 +161,18 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Add observability middleware
+slow_request_threshold = float(os.getenv("SLOW_REQUEST_THRESHOLD", "1.0"))
+app.add_middleware(PerformanceLoggingMiddleware, slow_request_threshold=slow_request_threshold)
+app.add_middleware(ObservabilityMiddleware)
+app.add_middleware(MetricsMiddleware)
+
+# Instrument FastAPI for tracing
+try:
+    instrument_fastapi(app)
+except Exception as e:
+    logger.warning(f"Failed to instrument FastAPI: {e}")
 
 # Register error handlers for domain exceptions
 register_error_handlers(app)
@@ -170,66 +240,48 @@ async def read_root():
     }
 
 
+@app.get("/metrics", tags=["monitoring"])
+async def prometheus_metrics():
+    """
+    Prometheus metrics endpoint.
+    Returns metrics in Prometheus format for scraping.
+    """
+    return await metrics_endpoint()
+
+
 @app.get("/health", tags=["health"])
 async def health_check(db: Session = Depends(get_db)):
     """
-    Health check endpoint.
-    Returns service status and database connectivity.
-    Validates all adapters when using new architecture.
+    Enhanced health check endpoint with detailed component status.
+    Returns service status, database connectivity, and all component health.
     """
     try:
-        # Test database query
-        from sqlalchemy import text
-        db.execute(text("SELECT 1"))
-        db_status = "healthy"
+        health_checker = HealthChecker()
+        health_result = health_checker.check_all(db=db)
         
-        # Count conversations
-        conversation_count = db.query(models.Conversation).count()
+        # Add basic service info
+        health_result["service"] = "mcp-conversational-data-server"
+        health_result["version"] = "1.0.0"
+        health_result["architecture"] = "hexagonal" if USE_NEW_ARCHITECTURE else "legacy"
         
-        health_info = {
-            "status": "healthy",
-            "service": "mcp-conversational-data-server",
-            "database": db_status,
-            "conversation_count": conversation_count,
-            "architecture": "hexagonal" if USE_NEW_ARCHITECTURE else "legacy",
-            "embedding_provider": os.getenv("EMBEDDING_PROVIDER", "local"),
-            "embedding_dimension": int(os.getenv("EMBEDDING_DIMENSION", 1536)),
-            "chat_gateway": "available" if CHAT_ROUTER_AVAILABLE else "not available"
-        }
+        # Add conversation count
+        try:
+            conversation_count = db.query(models.Conversation).count()
+            health_result["conversation_count"] = conversation_count
+        except Exception:
+            pass
         
-        # If using new architecture, validate adapter registrations
-        if USE_NEW_ARCHITECTURE:
-            try:
-                from app.domain.repositories import (
-                    IConversationRepository, IChunkRepository,
-                    IEmbeddingService, IVectorSearchRepository
-                )
-                
-                container = get_container()
-                
-                # Check if all required services are registered
-                adapters_status = {
-                    "conversation_repository": container.is_registered(IConversationRepository),
-                    "chunk_repository": container.is_registered(IChunkRepository),
-                    "embedding_service": container.is_registered(IEmbeddingService),
-                    "vector_search_repository": container.is_registered(IVectorSearchRepository),
-                }
-                
-                health_info["adapters"] = adapters_status
-                health_info["di_container"] = "configured"
-                
-                # Check if all adapters are registered
-                if not all(adapters_status.values()):
-                    health_info["status"] = "degraded"
-                    health_info["warning"] = "Some adapters not registered"
-                    
-            except Exception as e:
-                logger.warning(f"Failed to validate adapters: {e}")
-                health_info["di_container"] = f"error: {str(e)}"
-                health_info["status"] = "degraded"
+        # Determine HTTP status based on health
+        if health_result["status"] == "unhealthy":
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=health_result
+            )
         
-        return health_info
+        return health_result
         
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"❌ Health check failed: {e}")
         raise HTTPException(
@@ -259,6 +311,10 @@ async def search_conversations(
         # Perform search
         results = await crud.search_conversations(db, query=q, top_k=top_k)
         logger.info(f"✅ Found {len(results)} results")
+        
+        # Track metrics
+        metrics.searches_performed.inc()
+        
         chunk_results = [schemas.ChunkSearchResult(**r) for r in results]
         return schemas.ChunkSearchResponse(
             query=q,
