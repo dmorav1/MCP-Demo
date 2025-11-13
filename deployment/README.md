@@ -17,6 +17,79 @@ This directory contains comprehensive production deployment architecture, infras
 - AWS CLI v2
 - Docker
 
+### Initial Setup: Terraform Backend
+
+**⚠️ CRITICAL: Complete this step BEFORE running `terraform init` for the first time.**
+
+The Terraform configuration uses an S3 backend for state storage and DynamoDB for state locking. These resources must be created manually before initializing Terraform.
+
+#### Create Backend Resources
+
+```bash
+# Set your AWS region
+export AWS_REGION=us-east-1
+
+# 1. Create S3 bucket for Terraform state
+aws s3api create-bucket \
+  --bucket mcp-demo-terraform-state \
+  --region $AWS_REGION
+
+# 2. Enable versioning on the bucket (required for state recovery)
+aws s3api put-bucket-versioning \
+  --bucket mcp-demo-terraform-state \
+  --versioning-configuration Status=Enabled
+
+# 3. Enable encryption on the bucket
+aws s3api put-bucket-encryption \
+  --bucket mcp-demo-terraform-state \
+  --server-side-encryption-configuration '{
+    "Rules": [{
+      "ApplyServerSideEncryptionByDefault": {
+        "SSEAlgorithm": "AES256"
+      }
+    }]
+  }'
+
+# 4. Block public access to the bucket
+aws s3api put-public-access-block \
+  --bucket mcp-demo-terraform-state \
+  --public-access-block-configuration \
+    BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
+
+# 5. Create DynamoDB table for state locking
+aws dynamodb create-table \
+  --table-name mcp-demo-terraform-locks \
+  --attribute-definitions AttributeName=LockID,AttributeType=S \
+  --key-schema AttributeName=LockID,KeyType=HASH \
+  --billing-mode PAY_PER_REQUEST \
+  --region $AWS_REGION
+
+# Verify resources were created
+aws s3 ls | grep mcp-demo-terraform-state
+aws dynamodb describe-table --table-name mcp-demo-terraform-locks --region $AWS_REGION
+```
+
+#### Multi-Environment Backend Configuration
+
+For multiple environments (dev, staging, prod), create separate backend resources:
+
+```bash
+# For staging environment
+aws s3api create-bucket --bucket mcp-demo-terraform-state-staging --region $AWS_REGION
+aws s3api put-bucket-versioning --bucket mcp-demo-terraform-state-staging \
+  --versioning-configuration Status=Enabled
+aws dynamodb create-table --table-name mcp-demo-terraform-locks-staging \
+  --attribute-definitions AttributeName=LockID,AttributeType=S \
+  --key-schema AttributeName=LockID,KeyType=HASH \
+  --billing-mode PAY_PER_REQUEST --region $AWS_REGION
+
+# Then initialize Terraform with environment-specific backend config
+terraform init \
+  -backend-config="bucket=mcp-demo-terraform-state-staging" \
+  -backend-config="dynamodb_table=mcp-demo-terraform-locks-staging" \
+  -backend-config="key=staging/terraform.tfstate"
+```
+
 ### Deploy to Production
 
 ```bash
