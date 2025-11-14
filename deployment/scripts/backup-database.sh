@@ -25,6 +25,13 @@ echo "✅ Snapshot created successfully: $SNAPSHOT_NAME"
 # Optional: Export to S3
 if [ "${EXPORT_TO_S3:-false}" = "true" ]; then
     echo "Exporting snapshot to S3..."
+    
+    # Fetch AWS account ID dynamically if not set
+    if [ -z "${AWS_ACCOUNT_ID}" ]; then
+        AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+        echo "Fetched AWS Account ID: ${AWS_ACCOUNT_ID}"
+    fi
+    
     aws rds start-export-task \
       --export-task-identifier "${SNAPSHOT_NAME}-export" \
       --source-arn "arn:aws:rds:${AWS_REGION:-us-east-1}:${AWS_ACCOUNT_ID}:snapshot:${SNAPSHOT_NAME}" \
