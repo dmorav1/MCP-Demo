@@ -29,6 +29,9 @@ certifi>=2024.2.2
 httpx>=0.24.0
 requests>=2.31.0
 
+# Integration testing
+testcontainers>=4.7.0
+
 # MCP Server
 mcp>=0.9.0
 starlette>=0.27.0

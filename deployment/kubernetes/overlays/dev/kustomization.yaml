@@ -1,0 +1,83 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: dev
+
+# Base configuration
+bases:
+  - ../../base
+
+# Common labels for dev environment
+commonLabels:
+  environment: dev
+  version: latest
+
+# Resource name prefix
+namePrefix: dev-
+
+# Images to use for dev environment
+images:
+  - name: REGISTRY/mcp-backend
+    newName: ghcr.io/dmorav1/mcp-demo-backend
+    newTag: main-latest
+  - name: REGISTRY/mcp-frontend
+    newName: ghcr.io/dmorav1/mcp-demo-frontend
+    newTag: main-latest
+
+# ConfigMap for dev environment
+configMapGenerator:
+  - name: app-config
+    literals:
+      - ENVIRONMENT=development
+      - LOG_LEVEL=DEBUG
+      - DATABASE_HOST=postgres-dev.dev.svc.cluster.local
+      - DATABASE_PORT=5432
+      - DATABASE_NAME=mcp_dev
+      - REDIS_HOST=redis-dev.dev.svc.cluster.local
+      - REDIS_PORT=6379
+
+# Secret generator (in production, use external secret manager)
+secretGenerator:
+  - name: app-secrets
+    literals:
+      - DATABASE_PASSWORD=dev_password_change_me
+      # These should be replaced with actual secrets in real deployment
+
+# Patches for dev-specific configuration
+patches:
+  - target:
+      kind: Deployment
+      name: mcp-backend
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 1
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: ENVIRONMENT
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: ENVIRONMENT
+      - op: add
+        path: /spec/template/spec/containers/0/resources
+        value:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+
+  # Disable HPA for dev (use fixed replicas)
+  - target:
+      kind: HorizontalPodAutoscaler
+      name: mcp-backend
+    patch: |-
+      - op: replace
+        path: /spec/minReplicas
+        value: 1
+      - op: replace
+        path: /spec/maxReplicas
+        value: 2

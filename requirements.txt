@@ -43,6 +43,8 @@ distro==1.9.0
     # via
     #   anthropic
     #   openai
+docker==7.1.0
+    # via testcontainers
 docstring-parser==0.17.0
     # via anthropic
 fastapi==0.116.1
@@ -187,37 +189,6 @@ numpy==1.26.4
     #   scikit-learn
     #   scipy
     #   transformers
-nvidia-cublas-cu12==12.1.3.1
-    # via
-    #   nvidia-cudnn-cu12
-    #   nvidia-cusolver-cu12
-    #   torch
-nvidia-cuda-cupti-cu12==12.1.105
-    # via torch
-nvidia-cuda-nvrtc-cu12==12.1.105
-    # via torch
-nvidia-cuda-runtime-cu12==12.1.105
-    # via torch
-nvidia-cudnn-cu12==8.9.2.26
-    # via torch
-nvidia-cufft-cu12==11.0.2.54
-    # via torch
-nvidia-curand-cu12==10.3.2.106
-    # via torch
-nvidia-cusolver-cu12==11.4.5.107
-    # via torch
-nvidia-cusparse-cu12==12.1.0.106
-    # via
-    #   nvidia-cusolver-cu12
-    #   torch
-nvidia-nccl-cu12==2.19.3
-    # via torch
-nvidia-nvjitlink-cu12==12.9.86
-    # via
-    #   nvidia-cusolver-cu12
-    #   nvidia-cusparse-cu12
-nvidia-nvtx-cu12==12.1.105
-    # via torch
 openai==2.1.0
     # via
     #   -r requirements.in
@@ -345,6 +316,7 @@ python-dotenv==1.0.0
     # via
     #   -r requirements.in
     #   pydantic-settings
+    #   testcontainers
     #   uvicorn
 python-json-logger==4.0.0
     # via -r requirements.in
@@ -369,6 +341,7 @@ regex==2025.9.18
 requests==2.32.5
     # via
     #   -r requirements.in
+    #   docker
     #   huggingface-hub
     #   langchain-classic
     #   langchain-community
@@ -422,6 +395,8 @@ tenacity==9.1.2
     # via
     #   langchain-community
     #   langchain-core
+testcontainers==4.13.3
+    # via -r requirements.in
 threadpoolctl==3.6.0
     # via scikit-learn
 thrift==0.22.0
@@ -465,6 +440,7 @@ typing-extensions==4.14.1
     #   sentence-transformers
     #   sqlalchemy
     #   starlette
+    #   testcontainers
     #   torch
     #   typing-inspect
     #   typing-inspection
@@ -476,8 +452,10 @@ typing-inspection==0.4.1
     #   pydantic-settings
 urllib3==2.5.0
     # via
+    #   docker
     #   requests
     #   sentry-sdk
+    #   testcontainers
 uvicorn==0.37.0
     # via
     #   -r requirements.in
@@ -492,6 +470,7 @@ wrapt==1.17.3
     # via
     #   opentelemetry-instrumentation
     #   opentelemetry-instrumentation-sqlalchemy
+    #   testcontainers
 xxhash==3.6.0
     # via langgraph
 yarl==1.22.0
