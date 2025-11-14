@@ -1124,3 +1124,138 @@ This project is part of the MCP Demo repository. See the repository for license 
 **Status:** Phase 3 Complete ✅  
 **Last Updated:** November 7, 2025  
 **Maintained By:** Product Owner Agent
+
+## CI/CD Pipeline
+
+This project includes a comprehensive CI/CD pipeline implemented with GitHub Actions.
+
+### Pipeline Overview
+
+- **Continuous Integration (CI)**: Automated testing, code quality checks, and security scanning
+- **Continuous Deployment (CD)**: Automated deployment to dev, staging, and production environments
+- **Quality Gates**: Enforced code coverage (80%+), security scans, and smoke tests
+- **Rollback Capability**: Automated and manual rollback procedures
+
+### Workflows
+
+#### CI Pipeline (`.github/workflows/ci.yml`)
+
+Runs on every push and pull request to main/develop branches:
+
+- **Backend Tests**: Unit and integration tests with coverage reporting
+- **Frontend Tests**: React component tests with coverage
+- **Code Quality**: Linting with Black, Flake8, isort
+- **Security Scanning**: CodeQL static analysis
+- **Docker Build & Scan**: Build images and scan with Trivy
+
+#### CD Pipeline (`.github/workflows/cd-deploy.yml`)
+
+Handles deployments to different environments:
+
+- **Development**: Automatic deployment after CI passes
+- **Staging**: Manual deployment with approval required
+- **Production**: Manual deployment with approval, blue-green strategy
+
+#### Manual Rollback (`.github/workflows/rollback.yml`)
+
+Provides quick rollback capability for any environment.
+
+### Deployment
+
+#### Deploy to Development
+
+Automatic on push to main branch after CI passes.
+
+#### Deploy to Staging
+
+1. Go to Actions tab in GitHub
+2. Select "CD Pipeline - Deploy"
+3. Click "Run workflow"
+4. Select environment: `staging`
+5. Approve deployment
+
+#### Deploy to Production
+
+1. Go to Actions tab in GitHub
+2. Select "CD Pipeline - Deploy"
+3. Click "Run workflow"
+4. Select environment: `production`
+5. Wait for approval from deployment approvers
+6. Monitor deployment for 30 minutes
+
+#### Rollback
+
+1. Go to Actions tab in GitHub
+2. Select "Manual Rollback"
+3. Click "Run workflow"
+4. Enter environment and reason
+5. Approve rollback
+
+### Docker Images
+
+Optimized production images:
+
+- **Backend**: Multi-stage build with Python 3.11-slim (~500MB)
+- **Frontend**: Multi-stage build with nginx (~50MB)
+
+Build locally:
+
+```bash
+# Backend
+docker build -t mcp-backend:latest -f Dockerfile.optimized .
+
+# Frontend
+docker build -t mcp-frontend:latest -f frontend/Dockerfile.optimized ./frontend
+```
+
+### Database Migrations
+
+Migrations are handled automatically during deployment:
+
+```bash
+# Run migrations manually
+./deployment/scripts/migrations/run-migrations.sh
+
+# Environment variables
+NAMESPACE=production \
+DEPLOYMENT_NAME=mcp-backend \
+BACKUP_ENABLED=true \
+./deployment/scripts/migrations/run-migrations.sh
+```
+
+### Documentation
+
+- **CI/CD Pipeline**: [deployment/docs/CICD_PIPELINE.md](deployment/docs/CICD_PIPELINE.md)
+- **Deployment Runbook**: [deployment/docs/DEPLOYMENT_RUNBOOK.md](deployment/docs/DEPLOYMENT_RUNBOOK.md)
+- **Rollout Strategy**: [deployment/docs/ROLLOUT_STRATEGY.md](deployment/docs/ROLLOUT_STRATEGY.md)
+
+### Required Secrets
+
+Configure these secrets in GitHub repository settings:
+
+- `OPENAI_API_KEY`: OpenAI API key
+- `ANTHROPIC_API_KEY`: Anthropic API key
+- `SLACK_WEBHOOK_URL`: Slack notifications (optional)
+- `DATABASE_PASSWORD`: Database password
+- `AWS_ACCESS_KEY_ID`: AWS credentials (if using AWS)
+- `AWS_SECRET_ACCESS_KEY`: AWS credentials
+
+### Monitoring
+
+After deployment, monitor:
+
+- **Health**: `/health` endpoint
+- **Metrics**: `/metrics` endpoint (Prometheus format)
+- **Logs**: Kubernetes pod logs
+- **Dashboards**: Grafana dashboards
+
+### Quality Standards
+
+All code must meet these standards before deployment:
+
+- ✓ Test coverage ≥ 80%
+- ✓ All tests passing
+- ✓ No HIGH/CRITICAL security vulnerabilities
+- ✓ Code quality checks passing
+- ✓ Smoke tests passing
+
