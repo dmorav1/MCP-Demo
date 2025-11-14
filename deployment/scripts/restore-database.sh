@@ -12,7 +12,6 @@ if [ -z "$INSTANCE_ID" ]; then
     echo "Usage: DB_INSTANCE_ID=<source-instance-id> $0 {snapshot|pitr} <args>"
     exit 1
 fi
-
 if [ "$RESTORE_TYPE" = "snapshot" ]; then
     SNAPSHOT_ID="${2}"
     if [ -z "$SNAPSHOT_ID" ]; then

@@ -38,7 +38,6 @@ if [ "$RETRIEVED_SECRET" != "$NEW_SECRET" ]; then
     echo "❌ Secret verification failed: retrieved value does not match new value"
     exit 2
 fi
-
 echo "✅ Secret rotated successfully"
 echo ""
 echo "Next steps:"
