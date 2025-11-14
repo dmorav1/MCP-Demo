@@ -1,5 +1,22 @@
 # Terraform Variables for MCP Demo Infrastructure
 
+# Backend Configuration Variables
+# Note: These are used in backend.tf for the S3 backend configuration
+# The backend resources (S3 bucket and DynamoDB table) must be created
+# manually before running terraform init
+
+variable "terraform_state_bucket" {
+  description = "S3 bucket name for Terraform state storage (must exist before terraform init)"
+  type        = string
+  default     = "mcp-demo-terraform-state"
+}
+
+variable "terraform_state_dynamodb_table" {
+  description = "DynamoDB table name for Terraform state locking (must exist before terraform init)"
+  type        = string
+  default     = "mcp-demo-terraform-locks"
+}
+
 variable "aws_region" {
   description = "AWS region for all resources"
   type        = string
