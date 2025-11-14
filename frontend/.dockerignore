@@ -1,10 +1,44 @@
-node_modules
-npm-debug.log
-build
+# Git
 .git
 .gitignore
-README.md
-.env
+
+# Dependencies (installed during build)
+node_modules/
+
+# Production build (created during build)
+build/
+
+# Testing
+coverage/
+.nyc_output/
+
+# Environment files
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+logs/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
 .DS_Store
-coverage
-.vscode
+
+# Documentation
+*.md
+README.md
+
+# CI/CD
+.github/
+
+# Misc
+.eslintcache
+.cache/
