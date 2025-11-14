@@ -19,29 +19,18 @@ terraform {
     }
   }
   
-  # IMPORTANT: S3 Backend Prerequisites
-  # ------------------------------------
-  # Before running 'terraform init', you MUST manually create:
+  # IMPORTANT: The S3 backend resources (bucket and DynamoDB table) must be created
+  # before running 'terraform init'. These resources must exist or initialization will fail.
+  # 
+  # To create the backend resources manually:
+  # 1. aws s3api create-bucket --bucket mcp-demo-terraform-state --region us-east-1
+  # 2. aws s3api put-bucket-versioning --bucket mcp-demo-terraform-state --versioning-configuration Status=Enabled
+  # 3. aws dynamodb create-table --table-name mcp-demo-terraform-locks \
+  #      --attribute-definitions AttributeName=LockID,AttributeType=S \
+  #      --key-schema AttributeName=LockID,KeyType=HASH \
+  #      --billing-mode PAY_PER_REQUEST
   #
-  # 1. S3 Bucket for state storage:
-  #    - Name: mcp-demo-terraform-state (or custom name via -backend-config)
-  #    - Versioning: ENABLED (required for state recovery)
-  #    - Encryption: ENABLED (AES256 or KMS)
-  #    - Block Public Access: ENABLED
-  #
-  # 2. DynamoDB Table for state locking:
-  #    - Name: mcp-demo-terraform-locks (or custom name via -backend-config)
-  #    - Primary Key: LockID (String)
-  #    - Billing Mode: PAY_PER_REQUEST (recommended)
-  #
-  # For multiple environments, use different values:
-  #   terraform init \
-  #     -backend-config="bucket=mcp-demo-terraform-state-staging" \
-  #     -backend-config="dynamodb_table=mcp-demo-terraform-locks-staging" \
-  #     -backend-config="key=staging/terraform.tfstate"
-  #
-  # See deployment/README.md for detailed setup instructions.
-  
+  # Consider using variables for bucket and table names to support multiple environments.
   backend "s3" {
     bucket         = "mcp-demo-terraform-state"
     key            = "prod/terraform.tfstate"
