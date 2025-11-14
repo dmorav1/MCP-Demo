@@ -19,7 +19,6 @@ terraform {
     }
   }
   
-<<<<<<< HEAD
   # IMPORTANT: S3 Backend Prerequisites
   # ------------------------------------
   # Before running 'terraform init', you MUST manually create:
@@ -42,8 +41,7 @@ terraform {
   #     -backend-config="key=staging/terraform.tfstate"
   #
   # See deployment/README.md for detailed setup instructions.
-  
-=======
+
   # IMPORTANT: The S3 backend resources (bucket and DynamoDB table) must be created
   # before running 'terraform init'. These resources must exist or initialization will fail.
   # 
@@ -56,7 +54,6 @@ terraform {
   #      --billing-mode PAY_PER_REQUEST
   #
   # Consider using variables for bucket and table names to support multiple environments.
->>>>>>> ecdb768 (Apply all review comment suggestions from PR #38)
   backend "s3" {
     bucket         = "mcp-demo-terraform-state"
     key            = "prod/terraform.tfstate"
