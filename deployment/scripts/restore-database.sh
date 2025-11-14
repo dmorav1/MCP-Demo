@@ -12,6 +12,10 @@ if [ -z "$INSTANCE_ID" ]; then
     echo "Usage: DB_INSTANCE_ID=<source-instance-id> $0 {snapshot|pitr} <args>"
     exit 1
 fi
+<<<<<<< HEAD
+=======
+
+>>>>>>> ecdb768 (Apply all review comment suggestions from PR #38)
 if [ "$RESTORE_TYPE" = "snapshot" ]; then
     SNAPSHOT_ID="${2}"
     if [ -z "$SNAPSHOT_ID" ]; then
