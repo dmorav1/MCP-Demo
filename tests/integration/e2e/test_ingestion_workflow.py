@@ -3,7 +3,7 @@ import pytest
 from datetime import datetime
 
 from app.application.ingest_conversation import IngestConversationUseCase
-from app.application.dto import ConversationDTO, MessageDTO
+from app.application.dto import IngestConversationRequest, MessageDTO
 from app.adapters.outbound.embeddings.local_embedding_service import LocalEmbeddingService
 from app.domain.value_objects import STANDARD_EMBEDDING_DIMENSION
 
@@ -35,7 +35,7 @@ class TestIngestionWorkflowE2E:
     async def test_complete_ingestion_workflow(self, use_case, conversation_repository):
         """Test complete workflow from DTO to database with embeddings."""
         # Create input DTO (simulating API request)
-        dto = ConversationDTO(
+        dto = IngestConversationRequest(
             scenario_title="E2E Test Conversation",
             original_title="Original E2E Title",
             url="https://test.com/e2e",
@@ -43,20 +43,20 @@ class TestIngestionWorkflowE2E:
                 MessageDTO(
                     author_name="User1",
                     author_type="human",
-                    content="Hello, I need help with my account.",
-                    timestamp=datetime.now().isoformat(),
+                    text="Hello, I need help with my account.",
+                    timestamp=datetime.now(),
                 ),
                 MessageDTO(
                     author_name="Support",
                     author_type="human",
-                    content="Of course! I'd be happy to help you with your account.",
-                    timestamp=datetime.now().isoformat(),
+                    text="Of course! I'd be happy to help you with your account.",
+                    timestamp=datetime.now(),
                 ),
                 MessageDTO(
                     author_name="User1",
                     author_type="human",
-                    content="I can't log in. I keep getting an error message.",
-                    timestamp=datetime.now().isoformat(),
+                    text="I can't log in. I keep getting an error message.",
+                    timestamp=datetime.now(),
                 ),
             ],
         )
@@ -90,7 +90,7 @@ class TestIngestionWorkflowE2E:
         self, use_case, conversation_repository
     ):
         """Test ingestion with realistic customer support conversation."""
-        dto = ConversationDTO(
+        dto = IngestConversationRequest(
             scenario_title="Customer Support - Mobile App Issue",
             original_title="App Crashes on Settings",
             url="https://support.example.com/chat/12345",
@@ -98,19 +98,19 @@ class TestIngestionWorkflowE2E:
                 MessageDTO(
                     author_name="John Doe",
                     author_type="human",
-                    content="Hi, I'm having trouble with your mobile app. It keeps crashing every time I try to open the settings page.",
+                    text="Hi, I'm having trouble with your mobile app. It keeps crashing every time I try to open the settings page.",
                     timestamp="2024-01-15T10:30:00Z",
                 ),
                 MessageDTO(
                     author_name="Sarah (Support)",
                     author_type="human",
-                    content="Hello John! I'm sorry to hear you're experiencing crashes with our mobile app. I'd be happy to help you resolve this issue. Can you tell me which device and operating system version you're using?",
+                    text="Hello John! I'm sorry to hear you're experiencing crashes with our mobile app. I'd be happy to help you resolve this issue. Can you tell me which device and operating system version you're using?",
                     timestamp="2024-01-15T10:31:00Z",
                 ),
                 MessageDTO(
                     author_name="John Doe",
                     author_type="human",
-                    content="I'm using an iPhone 13 with iOS 17.2. The app was working fine until last week when I updated it to the latest version.",
+                    text="I'm using an iPhone 13 with iOS 17.2. The app was working fine until last week when I updated it to the latest version.",
                     timestamp="2024-01-15T10:32:30Z",
                 ),
             ],
@@ -142,12 +142,12 @@ class TestIngestionWorkflowE2E:
                 MessageDTO(
                     author_name=f"User{i % 2}",
                     author_type="human",
-                    content=f"Message number {i}",
-                    timestamp=datetime.now().isoformat(),
+                    text=f"Message number {i}",
+                    timestamp=datetime.now(),
                 )
             )
         
-        dto = ConversationDTO(
+        dto = IngestConversationRequest(
             scenario_title="Order Test",
             original_title="Test",
             url="https://test.com",
@@ -170,7 +170,7 @@ class TestIngestionWorkflowE2E:
         self, use_case, conversation_repository
     ):
         """Test ingestion handles special characters correctly."""
-        dto = ConversationDTO(
+        dto = IngestConversationRequest(
             scenario_title="Special Characters Test 🚀",
             original_title="Émojis and Spëcial Cháracters",
             url="https://test.com/special",
@@ -178,8 +178,8 @@ class TestIngestionWorkflowE2E:
                 MessageDTO(
                     author_name="User with émoji 👤",
                     author_type="human",
-                    content="Test with émojis 🎉🎊 and spëcial cháracters: <>&\"'",
-                    timestamp=datetime.now().isoformat(),
+                    text="Test with émojis 🎉🎊 and spëcial cháracters: <>&\"'",
+                    timestamp=datetime.now(),
                 ),
             ],
         )
@@ -200,7 +200,7 @@ class TestIngestionWorkflowE2E:
     async def test_ingestion_error_handling(self, use_case):
         """Test error handling in ingestion workflow."""
         # Create invalid DTO (empty messages)
-        dto = ConversationDTO(
+        dto = IngestConversationRequest(
             scenario_title="Test",
             original_title="Test",
             url="https://test.com",
@@ -250,12 +250,12 @@ class TestIngestionPerformance:
                 MessageDTO(
                     author_name=f"User{i % 2}",
                     author_type="human",
-                    content=f"This is message number {i} with some realistic content that a user might type in a support conversation.",
-                    timestamp=datetime.now().isoformat(),
+                    text=f"This is message number {i} with some realistic content that a user might type in a support conversation.",
+                    timestamp=datetime.now(),
                 )
             )
         
-        dto = ConversationDTO(
+        dto = IngestConversationRequest(
             scenario_title="Performance Test",
             original_title="Test",
             url="https://test.com/perf",
