@@ -3,7 +3,7 @@ import pytest
 from datetime import datetime
 
 from app.application.search_conversations import SearchConversationsUseCase
-from app.application.dto import SearchQueryDTO, ConversationDTO, MessageDTO
+from app.application.dto import SearchConversationRequest, IngestConversationRequest, MessageDTO
 from app.application.ingest_conversation import IngestConversationUseCase
 from app.adapters.outbound.embeddings.local_embedding_service import LocalEmbeddingService
 from app.domain.value_objects import STANDARD_EMBEDDING_DIMENSION
@@ -97,7 +97,7 @@ class TestSearchWorkflowE2E:
             assert result.success is True
         
         # Step 2: Search for Python-related content
-        search_query = SearchQueryDTO(
+        search_query = SearchConversationRequest(
             query="Python programming loops",
             top_k=5,
         )
@@ -141,7 +141,7 @@ class TestSearchWorkflowE2E:
         assert result.success is True
         
         # Search with semantically similar query (different words, same meaning)
-        search_query = SearchQueryDTO(
+        search_query = SearchConversationRequest(
             query="broken merchandise with screen issues",
             top_k=5,
         )
@@ -209,7 +209,7 @@ class TestSearchWorkflowE2E:
             await ingest_use_case.execute(conv_dto)
         
         # Search for password reset
-        search_query = SearchQueryDTO(
+        search_query = SearchConversationRequest(
             query="reset password account",
             top_k=5,
         )
@@ -248,7 +248,7 @@ class TestSearchWorkflowE2E:
             await ingest_use_case.execute(conv_dto)
         
         # Search with small limit
-        search_query = SearchQueryDTO(
+        search_query = SearchConversationRequest(
             query="test support message",
             top_k=3,
         )
@@ -261,7 +261,7 @@ class TestSearchWorkflowE2E:
     @pytest.mark.asyncio
     async def test_search_empty_database(self, search_use_case):
         """Test search on empty database returns empty results."""
-        search_query = SearchQueryDTO(
+        search_query = SearchConversationRequest(
             query="test query",
             top_k=5,
         )
@@ -295,7 +295,7 @@ class TestSearchWorkflowE2E:
         await ingest_use_case.execute(conv_dto)
         
         # Search with special characters
-        search_query = SearchQueryDTO(
+        search_query = SearchConversationRequest(
             query="émojis special test",
             top_k=5,
         )
@@ -351,24 +351,24 @@ class TestSearchWorkflowPerformance:
         
         # Ingest 10 conversations
         for i in range(10):
-            conv_dto = ConversationDTO(
+            conv_dto = IngestConversationRequest(
                 scenario_title=f"Conversation {i}",
                 original_title="Test",
                 url=f"https://test.com/{i}",
                 messages=[
                     MessageDTO(
+                        text=f"Message {j} in conversation {i} with test content.",
                         author_name="User",
                         author_type="human",
-                        content=f"Message {j} in conversation {i} with test content."
-                        for j in range(3)
-                    )[0],  # Just use first message for speed
-                    timestamp=datetime.now().isoformat(),
+                        timestamp=datetime.now(),
+                    )
+                    for j in range(3)
                 ],
             )
             await ingest_use_case.execute(conv_dto)
         
         # Measure search time
-        search_query = SearchQueryDTO(
+        search_query = SearchConversationRequest(
             query="test content message",
             top_k=5,
         )
