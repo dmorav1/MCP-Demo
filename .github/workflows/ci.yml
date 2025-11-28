@@ -42,6 +42,14 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: 'pip'
 
+      - name: Cache sentence-transformers models
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/torch/sentence_transformers
+          key: ${{ runner.os }}-sentence-transformers-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-sentence-transformers-
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip setuptools wheel
@@ -54,7 +62,11 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY || 'sk-test-key' }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY || 'test-key' }}
         run: |
-          pytest tests/ -v --tb=short -m "not slow" --cov=app --cov-report=xml --cov-report=term-missing --cov-report=html
+          # Run only fast unit tests, skip slow integration tests that download large models
+          # "not slow" skips tests marked with @pytest.mark.slow
+          # "not integration" skips tests that require real external services
+          # This prevents: model downloads, real API calls, long-running operations
+          pytest tests/ -v --tb=short -m "not slow and not integration" --cov=app --cov-report=xml --cov-report=term-missing --cov-report=html
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4

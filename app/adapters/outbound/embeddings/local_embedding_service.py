@@ -70,22 +70,36 @@ class LocalEmbeddingService:
             try:
                 # Import here to avoid loading dependencies if not using local embeddings
                 from sentence_transformers import SentenceTransformer
-                
+
                 logger.info(f"Loading sentence-transformers model: {self.model_name}")
-                
+
                 # Run model loading in thread pool to avoid blocking
+                # Add timeout to prevent hanging if model download fails or is very slow
                 loop = asyncio.get_event_loop()
-                self._model = await loop.run_in_executor(
-                    None,
-                    lambda: SentenceTransformer(
-                        self.model_name,
-                        device=self.device,
-                        cache_folder=self.cache_dir
+                try:
+                    self._model = await asyncio.wait_for(
+                        loop.run_in_executor(
+                            None,
+                            lambda: SentenceTransformer(
+                                self.model_name,
+                                device=self.device,
+                                cache_folder=self.cache_dir
+                            )
+                        ),
+                        timeout=120.0  # 2 minute timeout for model download/loading
                     )
-                )
-                
+                except asyncio.TimeoutError:
+                    raise EmbeddingError(
+                        f"Model loading timed out after 120 seconds. "
+                        f"This may be due to slow network during model download. "
+                        f"Please check your internet connection and try again."
+                    )
+
                 logger.info(f"Model {self.model_name} loaded successfully")
-                
+
+            except EmbeddingError:
+                # Re-raise EmbeddingError as-is (includes timeout errors)
+                raise
             except Exception as e:
                 logger.error(f"Failed to load model {self.model_name}: {e}")
                 raise EmbeddingError(f"Failed to load embedding model: {e}")
