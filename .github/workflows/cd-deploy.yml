@@ -1,5 +1,13 @@
 name: CD Pipeline - Deploy
 
+# ⚠️  INFRASTRUCTURE REQUIRED
+# This workflow builds and pushes Docker images successfully.
+# Deployment steps are currently in "placeholder mode" and require:
+#   - Kubernetes cluster setup
+#   - kubectl configuration
+#   - GitHub secrets for cluster access
+# Images are pushed to GHCR and can be deployed manually.
+
 on:
   workflow_run:
     workflows: ["CI Pipeline"]
@@ -95,9 +103,25 @@ jobs:
 
       - name: Deploy to Development
         run: |
-          echo "Deploying to development environment"
-          # This would typically use kubectl, helm, or other deployment tools
-          # Example: kubectl set image deployment/mcp-backend mcp-backend=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-backend:${{ github.sha }}
+          echo "⚠️  INFRASTRUCTURE SETUP REQUIRED"
+          echo "=========================================="
+          echo "This workflow requires Kubernetes cluster configuration."
+          echo ""
+          echo "📋 Setup Checklist:"
+          echo "  [ ] Configure kubectl with cluster credentials"
+          echo "  [ ] Set up GitHub secrets: KUBECONFIG or KUBE_CONFIG_DATA"
+          echo "  [ ] Create development namespace in cluster"
+          echo "  [ ] Configure ingress/load balancer"
+          echo ""
+          echo "📝 Example deployment commands:"
+          echo "  kubectl set image deployment/mcp-backend mcp-backend=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-backend:${{ github.sha }}"
+          echo "  kubectl set image deployment/mcp-frontend mcp-frontend=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-frontend:${{ github.sha }}"
+          echo ""
+          echo "✅ Images successfully built and pushed:"
+          echo "  Backend:  ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-backend:${{ github.sha }}"
+          echo "  Frontend: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-frontend:${{ github.sha }}"
+          echo ""
+          echo "ℹ️  Manual deployment required until infrastructure is configured."
 
       - name: Run smoke tests
         run: |
