@@ -15,10 +15,15 @@ their own schema lifecycle; this global fixture is lightweight and safe.
 from app.database import Base, engine
 import importlib
 import pytest
+import threading
 from sqlalchemy import text
 from app.logging_config import get_logger
 
 logger = get_logger(__name__)
+
+# Thread-safe schema creation
+_schema_lock = threading.Lock()
+_schema_created = False
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -29,39 +34,51 @@ def ensure_schema():
 	`get_db` dependency has a valid schema. Dropping at the end keeps the test
 	environment clean without affecting separately managed test databases that
 	use overrides (those bind a different engine and maintain their own schema).
-	
+
 	Skips setup if database is not available (for unit tests).
+	Thread-safe to prevent race conditions when tests run in parallel.
 	"""
-	# Ensure models are imported so SQLAlchemy metadata is populated regardless of
-	# test module import order.
-	importlib.import_module("app.models")
+	global _schema_created
 
-	# Proactively ensure pgvector extension exists (needed for Vector column type)
-	try:
-		with engine.connect() as conn:
-			conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
-			conn.commit()
-		logger.info("🧩 Ensured pgvector extension is present for tests")
-	except Exception as ext_err:
-		# If database is not available, skip (for unit tests)
-		logger.warning(f"⚠️ Database not available, skipping schema setup (OK for unit tests): {ext_err}")
-		yield
-		return
+	with _schema_lock:
+		if _schema_created:
+			logger.info("✓ Schema already created by another test")
+			yield
+			return
 
-	# Create all tables
-	try:
-		Base.metadata.create_all(bind=engine, checkfirst=True)
-		logger.info("🛠️ Test database schema created")
-	except Exception as schema_err:
-		logger.warning(f"⚠️ Could not create test schema (OK for unit tests): {schema_err}")
-		yield
-		return
-		
+		# Ensure models are imported so SQLAlchemy metadata is populated regardless of
+		# test module import order.
+		importlib.import_module("app.models")
+
+		# Proactively ensure pgvector extension exists (needed for Vector column type)
+		try:
+			with engine.connect() as conn:
+				conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+				conn.commit()
+			logger.info("🧩 Ensured pgvector extension is present for tests")
+		except Exception as ext_err:
+			# If database is not available, skip (for unit tests)
+			logger.warning(f"⚠️ Database not available, skipping schema setup (OK for unit tests): {ext_err}")
+			yield
+			return
+
+		# Create all tables
+		try:
+			Base.metadata.create_all(bind=engine, checkfirst=True)
+			logger.info("🛠️ Test database schema created")
+			_schema_created = True
+		except Exception as schema_err:
+			logger.warning(f"⚠️ Could not create test schema (OK for unit tests): {schema_err}")
+			yield
+			return
+
 	yield
-	
-	try:
-		Base.metadata.drop_all(bind=engine)
-	except Exception:
-		# Dropping is best-effort; ignore teardown errors to not mask test results.
-		pass
+
+	with _schema_lock:
+		try:
+			Base.metadata.drop_all(bind=engine)
+			_schema_created = False
+		except Exception:
+			# Dropping is best-effort; ignore teardown errors to not mask test results.
+			pass
 

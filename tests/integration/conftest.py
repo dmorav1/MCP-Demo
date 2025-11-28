@@ -36,31 +36,50 @@ logger = get_logger(__name__)
 def postgres_container():
     """
     Start a PostgreSQL container with pgvector extension.
-    
+    Skip if DATABASE_URL is already provided (CI environment).
+
     Uses session scope to reuse container across all integration tests.
     """
+    # Check if running in CI with existing database
+    if os.getenv("DATABASE_URL"):
+        logger.info("⏭️  Using existing DATABASE_URL, skipping testcontainer")
+        yield None
+        return
+
     logger.info("🐳 Starting PostgreSQL testcontainer with pgvector...")
-    
-    # Use pgvector/pgvector image
+
+    # Use pgvector/pgvector image (pg16 to match CI)
     postgres = PostgresContainer(
-        image="pgvector/pgvector:pg15",
+        image="pgvector/pgvector:pg16",  # Match CI version
         username="test_user",
         password="test_password",
         dbname="test_db",
     )
-    
+
     postgres.start()
     logger.info(f"✅ PostgreSQL testcontainer started: {postgres.get_connection_url()}")
-    
+
     yield postgres
-    
+
     logger.info("🛑 Stopping PostgreSQL testcontainer...")
     postgres.stop()
 
 
 @pytest.fixture(scope="session")
 def postgres_url(postgres_container) -> str:
-    """Get PostgreSQL connection URL from container."""
+    """Get PostgreSQL connection URL from container or environment."""
+    # Use existing DATABASE_URL if available (CI environment)
+    if env_url := os.getenv("DATABASE_URL"):
+        # Ensure it uses psycopg3 format
+        if "postgresql://" in env_url and "postgresql+psycopg://" not in env_url:
+            env_url = env_url.replace("postgresql://", "postgresql+psycopg://", 1)
+        logger.info(f"📌 Using DATABASE_URL from environment: {env_url}")
+        return env_url
+
+    # Otherwise use testcontainer
+    if postgres_container is None:
+        raise RuntimeError("No DATABASE_URL provided and testcontainer failed to start")
+
     # Get base URL and convert to psycopg3 format
     url = postgres_container.get_connection_url()
     # Replace driver name to use psycopg (version 3)
@@ -68,6 +87,7 @@ def postgres_url(postgres_container) -> str:
         url = url.replace("postgresql://", "postgresql+psycopg://", 1)
     elif "postgresql+psycopg2://" in url:
         url = url.replace("postgresql+psycopg2://", "postgresql+psycopg://", 1)
+    logger.info(f"📌 Using testcontainer URL: {url}")
     return url
 
 

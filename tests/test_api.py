@@ -7,11 +7,15 @@ from app.main import app as fastapi_app
 from app.database import get_db, Base
 import os
 
-# Test database URL (use a dedicated test database/port)
+# Test database URL - matches CI environment (DATABASE_URL)
+# CI provides: postgresql://postgres:postgres@localhost:5432/test_db
 SQLALCHEMY_DATABASE_URL = os.getenv(
-    "TEST_DATABASE_URL",
-    "postgresql+psycopg://mcp_user:mcp_password@localhost:5433/mcp_db"
+    "DATABASE_URL",  # Use same env var as CI
+    "postgresql+psycopg://postgres:postgres@localhost:5432/test_db"  # Match CI defaults
 )
+# Ensure we're using psycopg3 driver format
+if "postgresql://" in SQLALCHEMY_DATABASE_URL and "postgresql+psycopg://" not in SQLALCHEMY_DATABASE_URL:
+    SQLALCHEMY_DATABASE_URL = SQLALCHEMY_DATABASE_URL.replace("postgresql://", "postgresql+psycopg://", 1)
 
 engine = create_engine(SQLALCHEMY_DATABASE_URL)
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
