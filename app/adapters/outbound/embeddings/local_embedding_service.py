@@ -3,8 +3,14 @@ Local embedding service using sentence-transformers.
 
 Implements IEmbeddingService protocol using sentence-transformers library
 with the all-MiniLM-L6-v2 model (384 dimensions, padded to 1536).
+
+PERFORMANCE OPTIMIZATION:
+Uses a global model cache to prevent repeated model loading which causes
+CI timeouts (~2-3 seconds per load). The model is loaded once and reused
+across all service instances.
 """
 import asyncio
+import threading
 from typing import List, Optional
 import logging
 
@@ -12,6 +18,44 @@ from app.domain.repositories import EmbeddingError
 from app.domain.value_objects import Embedding, STANDARD_EMBEDDING_DIMENSION
 
 logger = logging.getLogger(__name__)
+
+# Global model cache (prevents repeated loading during tests)
+_global_model_cache = {}
+_global_model_lock = threading.Lock()
+
+
+def get_cached_model(model_name: str, device: Optional[str] = None, cache_dir: Optional[str] = None):
+    """
+    Get or create a cached sentence-transformers model.
+    
+    This global cache prevents repeated model loading which causes CI timeouts.
+    Each unique (model_name, device) combination gets its own cached instance.
+    """
+    cache_key = (model_name, device)
+    
+    with _global_model_lock:
+        if cache_key not in _global_model_cache:
+            try:
+                from sentence_transformers import SentenceTransformer
+                logger.info(f"🔄 Loading sentence-transformers model (GLOBAL CACHE): {model_name}")
+                _global_model_cache[cache_key] = SentenceTransformer(
+                    model_name,
+                    device=device,
+                    cache_folder=cache_dir
+                )
+                logger.info(f"✅ Model {model_name} loaded and cached globally")
+            except Exception as e:
+                logger.error(f"Failed to load model {model_name}: {e}")
+                raise EmbeddingError(f"Failed to load embedding model: {e}")
+        return _global_model_cache[cache_key]
+
+
+def clear_model_cache():
+    """Clear the global model cache. Useful for testing."""
+    global _global_model_cache
+    with _global_model_lock:
+        _global_model_cache.clear()
+        logger.info("🗑️ Global model cache cleared")
 
 
 class LocalEmbeddingService:
@@ -58,7 +102,7 @@ class LocalEmbeddingService:
         )
     
     async def _ensure_model_loaded(self):
-        """Lazy load the sentence-transformers model."""
+        """Lazy load the sentence-transformers model using global cache."""
         if self._model is not None:
             return
         
@@ -68,22 +112,17 @@ class LocalEmbeddingService:
                 return
             
             try:
-                # Import here to avoid loading dependencies if not using local embeddings
-                from sentence_transformers import SentenceTransformer
-
-                logger.info(f"Loading sentence-transformers model: {self.model_name}")
-
-                # Run model loading in thread pool to avoid blocking
-                # Add timeout to prevent hanging if model download fails or is very slow
+                # Use global cache to prevent repeated loading
+                # This is the key optimization for CI performance
                 loop = asyncio.get_event_loop()
                 try:
                     self._model = await asyncio.wait_for(
                         loop.run_in_executor(
                             None,
-                            lambda: SentenceTransformer(
+                            lambda: get_cached_model(
                                 self.model_name,
-                                device=self.device,
-                                cache_folder=self.cache_dir
+                                self.device,
+                                self.cache_dir
                             )
                         ),
                         timeout=120.0  # 2 minute timeout for model download/loading
@@ -95,7 +134,7 @@ class LocalEmbeddingService:
                         f"Please check your internet connection and try again."
                     )
 
-                logger.info(f"Model {self.model_name} loaded successfully")
+                logger.info(f"Model {self.model_name} ready (from cache)")
 
             except EmbeddingError:
                 # Re-raise EmbeddingError as-is (includes timeout errors)

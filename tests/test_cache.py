@@ -318,12 +318,23 @@ class TestCachedSearchService:
     ):
         """Test cache hit skips search execution."""
         from app.application.dto import SearchConversationRequest, SearchConversationResponse
+        from app.application.dto import SearchResultDTO
         
         request = SearchConversationRequest(query="test query", top_k=5)
+        # Include results so they get cached (empty results are not cached)
         response = SearchConversationResponse(
-            results=[],
+            results=[
+                SearchResultDTO(
+                    chunk_id="1",
+                    conversation_id="1",
+                    text="test content",
+                    score=0.95,
+                    author_name="Test",
+                    order_index=0
+                )
+            ],
             query="test query",
-            total_results=0,
+            total_results=1,
             execution_time_ms=10.0,
             success=True
         )
