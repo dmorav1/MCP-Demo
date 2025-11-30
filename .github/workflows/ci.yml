@@ -68,7 +68,7 @@ jobs:
           # "not integration" skips tests that require real external services
           # --timeout=300: Each test has max 5 minutes (prevents hanging)
           # This prevents: model downloads, real API calls, long-running operations, infinite loops
-          pytest tests/ -v --tb=short -m "not slow and not integration" --timeout=300 --cov=app --cov-report=xml --cov-report=term-missing --cov-report=html
+          pytest tests/ -v --tb=short -m "not slow and not integration" --ignore=tests/integration --timeout=300 --cov=app --cov-report=xml --cov-report=term-missing --cov-report=html
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
