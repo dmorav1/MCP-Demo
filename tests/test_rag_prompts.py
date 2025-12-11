@@ -167,11 +167,11 @@ Detailed Answer with Citations:"""
         )
         
         # Lower temperature (more deterministic)
-        low_temp_config = Mock(spec=prompt_config)
+        low_temp_config = Mock()
         low_temp_config.temperature = 0.1
         
         # Higher temperature (more creative)
-        high_temp_config = Mock(spec=prompt_config)
+        high_temp_config = Mock()
         high_temp_config.temperature = 1.5
         
         # Verify temperature ranges

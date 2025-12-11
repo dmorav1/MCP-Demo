@@ -201,7 +201,7 @@ class TestChunkRepositoryIntegration:
                 conversation_id=saved_conv.id,
                 text=ChunkText(content=max_text),
                 metadata=ChunkMetadata(
-                    order_index=0,
+                    order_index=10,  # Use non-conflicting index (0-2 taken)
                     author_info=AuthorInfo(name="User", author_type="human"),
                     timestamp=datetime.now(),
                 ),
@@ -232,7 +232,7 @@ class TestChunkRepositoryIntegration:
                 conversation_id=saved_conv.id,
                 text=ChunkText(content=special_text),
                 metadata=ChunkMetadata(
-                    order_index=0,
+                    order_index=10,  # Use non-conflicting index
                     author_info=AuthorInfo(name="User with émoji 👤", author_type="human"),
                     timestamp=datetime.now(),
                 ),
@@ -253,8 +253,15 @@ class TestChunkRepositoryIntegration:
     ):
         """Test performance of batch chunk saving."""
         import time
+        from app.domain.entities import Conversation
         
-        saved_conv = await conversation_repository.save(sample_conversation)
+        # Create empty conversation for batch test to avoid index collision
+        empty_conv = Conversation(
+            id=None,
+            metadata=sample_conversation.metadata,
+            chunks=[]
+        )
+        saved_conv = await conversation_repository.save(empty_conv)
         
         # Create 50 chunks
         chunks = [

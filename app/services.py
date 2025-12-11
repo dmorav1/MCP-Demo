@@ -5,6 +5,7 @@ import logging
 import re
 import os
 import asyncio
+import threading
 from typing import List, Optional
 from app.logging_config import get_logger
 from app.config import settings
@@ -19,33 +20,63 @@ try:
 except Exception:
     pass
 
-# Local model loader (cached)
+# Local model loader (cached with thread safety)
 try:
     from sentence_transformers import SentenceTransformer  # requires numpy
 except Exception:
     SentenceTransformer = None
 
+# Thread-safe model caching
 _local_model = None
 _fastembed_model = None
+_model_lock = threading.Lock()
 
 def _get_local_model(model_name: Optional[str] = None):
+    """
+    Get or create a cached sentence-transformers model.
+    
+    Thread-safe singleton pattern to prevent multiple model loads
+    which cause CI timeouts (~2-3 seconds per load).
+    """
     global _local_model
     name = model_name or getattr(settings, "embedding_model", "all-MiniLM-L6-v2")
-    if _local_model is None:
-        if not SentenceTransformer:
-            raise RuntimeError("sentence-transformers is not installed")
-        _local_model = SentenceTransformer(name)
-        logger.info(f"Loaded local embedding model: {name}")
-    return _local_model
+    
+    with _model_lock:
+        if _local_model is None:
+            if not SentenceTransformer:
+                raise RuntimeError("sentence-transformers is not installed")
+            logger.info(f"🔄 Loading local embedding model (CACHED): {name}")
+            _local_model = SentenceTransformer(name)
+            logger.info(f"✅ Loaded and cached local embedding model: {name}")
+        return _local_model
 
 def _get_fastembed_model():
+    """
+    Get or create a cached fastembed model.
+    
+    Thread-safe singleton pattern.
+    """
     global _fastembed_model
-    if _fastembed_model is None:
-        if not FASTEMBED_AVAILABLE:
-            raise RuntimeError("fastembed not installed")
-        _fastembed_model = TextEmbedding()
-        logger.info("Loaded fastembed TextEmbedding model")
-    return _fastembed_model
+    
+    with _model_lock:
+        if _fastembed_model is None:
+            if not FASTEMBED_AVAILABLE:
+                raise RuntimeError("fastembed not installed")
+            logger.info("🔄 Loading fastembed TextEmbedding model (CACHED)")
+            _fastembed_model = TextEmbedding()
+            logger.info("✅ Loaded and cached fastembed TextEmbedding model")
+        return _fastembed_model
+
+
+def reset_model_cache():
+    """
+    Reset the model cache. Useful for testing.
+    """
+    global _local_model, _fastembed_model
+    with _model_lock:
+        _local_model = None
+        _fastembed_model = None
+        logger.info("🗑️ Model cache cleared")
 
 def generate_embedding_local(texts: List[str]) -> List[List[float]]:
     """

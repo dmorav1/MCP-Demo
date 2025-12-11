@@ -28,11 +28,14 @@ from app.application.dto import (
 )
 
 
-# Test database URL
+# Test database URL - matches CI environment (DATABASE_URL on port 5432)
 SQLALCHEMY_DATABASE_URL = os.getenv(
-    "TEST_DATABASE_URL",
-    "postgresql+psycopg://mcp_user:mcp_password@localhost:5433/mcp_db"
+    "DATABASE_URL",  # Use same env var as CI
+    "postgresql+psycopg://postgres:postgres@localhost:5432/test_db"  # Match CI defaults
 )
+# Ensure we're using psycopg3 driver format
+if "postgresql://" in SQLALCHEMY_DATABASE_URL and "postgresql+psycopg://" not in SQLALCHEMY_DATABASE_URL:
+    SQLALCHEMY_DATABASE_URL = SQLALCHEMY_DATABASE_URL.replace("postgresql://", "postgresql+psycopg://", 1)
 
 engine = create_engine(SQLALCHEMY_DATABASE_URL)
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -68,6 +71,7 @@ def client(setup_database):
 # Conversation Endpoints Tests
 # ============================================================================
 
+@pytest.mark.integration
 class TestConversationIngest:
     """Tests for POST /conversations/ingest endpoint."""
     
@@ -75,7 +79,7 @@ class TestConversationIngest:
         """Test ingesting a basic conversation."""
         data = {
             "messages": [
-                {"text": "Hello, I need help", "author_name": "User", "author_type": "user"},
+                {"text": "Hello, I need help", "author_name": "User", "author_type": "human"},
                 {"text": "How can I help you?", "author_name": "Assistant", "author_type": "assistant"}
             ],
             "scenario_title": "Basic Help"
@@ -91,7 +95,7 @@ class TestConversationIngest:
         """Test ingesting conversation with all metadata fields."""
         data = {
             "messages": [
-                {"text": "Test message", "author_name": "User", "author_type": "user"}
+                {"text": "Test message", "author_name": "User", "author_type": "human"}
             ],
             "scenario_title": "Test Scenario",
             "original_title": "Original Title",
@@ -127,7 +131,7 @@ class TestConversationIngest:
         long_text = "This is a long message. " * 200  # ~5000 characters
         data = {
             "messages": [
-                {"text": long_text, "author_name": "User", "author_type": "user"}
+                {"text": long_text, "author_name": "User", "author_type": "human"}
             ]
         }
         response = client.post("/conversations/ingest", json=data)
@@ -136,6 +140,7 @@ class TestConversationIngest:
         assert result["success"] is True
 
 
+@pytest.mark.integration
 class TestConversationList:
     """Tests for GET /conversations endpoint."""
     
@@ -176,6 +181,7 @@ class TestConversationList:
         assert response.status_code == 422
 
 
+@pytest.mark.integration
 class TestConversationGet:
     """Tests for GET /conversations/{id} endpoint."""
     
@@ -212,6 +218,7 @@ class TestConversationGet:
         assert response.status_code == 422
 
 
+@pytest.mark.integration
 class TestConversationDelete:
     """Tests for DELETE /conversations/{id} endpoint."""
     
@@ -248,6 +255,7 @@ class TestConversationDelete:
 # Search Endpoints Tests
 # ============================================================================
 
+@pytest.mark.integration
 class TestSearchPost:
     """Tests for POST /search endpoint."""
     
@@ -278,7 +286,7 @@ class TestSearchPost:
             "query": "test query",
             "top_k": 5,
             "filters": {
-                "author_type": "user",
+                "author_type": "human",
                 "min_score": 0.5
             }
         }
@@ -311,6 +319,7 @@ class TestSearchPost:
         assert response.status_code == 422
 
 
+@pytest.mark.integration
 class TestSearchGet:
     """Tests for GET /search endpoint."""
     
@@ -330,7 +339,7 @@ class TestSearchGet:
     
     def test_search_get_with_filters(self, client):
         """Test GET search with filters."""
-        response = client.get("/search?q=test&top_k=5&author_type=user&min_score=0.7")
+        response = client.get("/search?q=test&top_k=5&author_type=human&min_score=0.7")
         assert response.status_code == 200
         result = response.json()
         assert "results" in result
@@ -345,6 +354,7 @@ class TestSearchGet:
 # RAG Endpoints Tests
 # ============================================================================
 
+@pytest.mark.integration
 class TestRAGAsk:
     """Tests for POST /rag/ask endpoint."""
     
@@ -411,6 +421,7 @@ class TestRAGAsk:
         assert response.status_code == 422
 
 
+@pytest.mark.integration
 class TestRAGStream:
     """Tests for POST /rag/ask-stream endpoint."""
     
@@ -437,6 +448,7 @@ class TestRAGStream:
         assert response.headers["content-type"] == "text/event-stream; charset=utf-8"
 
 
+@pytest.mark.integration
 class TestRAGHealth:
     """Tests for GET /rag/health endpoint."""
     
@@ -481,6 +493,7 @@ class TestRAGHealth:
 # Error Handling Tests
 # ============================================================================
 
+@pytest.mark.integration
 class TestErrorHandling:
     """Tests for error handling."""
     
@@ -515,6 +528,7 @@ class TestErrorHandling:
 # Integration Tests
 # ============================================================================
 
+@pytest.mark.integration
 class TestEndToEndWorkflow:
     """End-to-end workflow tests."""
     
@@ -523,7 +537,7 @@ class TestEndToEndWorkflow:
         # 1. Ingest conversation
         ingest_data = {
             "messages": [
-                {"text": "I need help with Django", "author_name": "User", "author_type": "user"},
+                {"text": "I need help with Django", "author_name": "User", "author_type": "human"},
                 {"text": "I can help you with Django", "author_name": "Assistant", "author_type": "assistant"}
             ],
             "scenario_title": "Django Help"
@@ -580,6 +594,7 @@ class TestEndToEndWorkflow:
 # Performance and Edge Case Tests
 # ============================================================================
 
+@pytest.mark.integration
 class TestEdgeCases:
     """Tests for edge cases and boundary conditions."""
     

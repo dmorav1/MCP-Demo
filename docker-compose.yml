@@ -23,7 +23,7 @@ services:
     image: redis:7-alpine
     container_name: mcp-redis
     ports:
-      - "6379:6379"
+      - "6380:6379"
     volumes:
       - redis_data:/data
     command: redis-server --appendonly yes
@@ -36,7 +36,7 @@ services:
       - mcp-network
 
   mcp-backend:
-    build: 
+    build:
       context: .
       dockerfile: Dockerfile
     container_name: mcp-backend
@@ -136,15 +136,15 @@ services:
     env_file:
       - .env
     environment:
-       PORT: 3000
-       DATABASE_URL: postgresql+psycopg://mcp_user:mcp_password@postgres:5432/mcp_db
-       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-       SLACK_BOT_TOKEN: ${SLACK_BOT_TOKEN:-}
-       EMBEDDING_MODEL: text-embedding-ada-002
-       EMBEDDING_DIMENSION: 1536
-       FASTAPI_BASE_URL: http://mcp-backend:8000
-       SLACK_CHANNEL: ${SLACK_CHANNEL:-warchan-ai-demo-1}
-       SLACK_APP_TOKEN: ${SLACK_APP_TOKEN:-}
+      PORT: 3000
+      DATABASE_URL: postgresql+psycopg://mcp_user:mcp_password@postgres:5432/mcp_db
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      SLACK_BOT_TOKEN: ${SLACK_BOT_TOKEN:-}
+      EMBEDDING_MODEL: text-embedding-ada-002
+      EMBEDDING_DIMENSION: 1536
+      FASTAPI_BASE_URL: http://mcp-backend:8000
+      SLACK_CHANNEL: ${SLACK_CHANNEL:-warchan-ai-demo-1}
+      SLACK_APP_TOKEN: ${SLACK_APP_TOKEN:-}
     volumes:
       - ./slack:/usr/src/app
     networks:
@@ -152,20 +152,6 @@ services:
     depends_on:
       mcp-backend:
         condition: service_healthy
-
-networks:
-  mcp-network:
-    driver: bridge
-
-volumes:
-  postgres_data:
-    driver: local
-  redis_data:
-    driver: local
-  prometheus_data:
-    driver: local
-  grafana_data:
-    driver: local
 
   # Observability services
   prometheus:
@@ -178,9 +164,9 @@ volumes:
       - ./monitoring/prometheus-alerts.yml:/etc/prometheus/alerts.yml
       - prometheus_data:/prometheus
     command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
-      - '--web.enable-lifecycle'
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.enable-lifecycle"
     networks:
       - mcp-network
     restart: unless-stopped
@@ -207,13 +193,27 @@ volumes:
     image: jaegertracing/all-in-one:latest
     container_name: mcp-jaeger
     ports:
-      - "16686:16686"  # Jaeger UI
-      - "6831:6831/udp"  # Jaeger agent
-      - "14268:14268"  # Jaeger collector
-      - "4317:4317"  # OTLP gRPC
-      - "4318:4318"  # OTLP HTTP
+      - "16686:16686" # Jaeger UI
+      - "6831:6831/udp" # Jaeger agent
+      - "14268:14268" # Jaeger collector
+      - "4317:4317" # OTLP gRPC
+      - "4318:4318" # OTLP HTTP
     environment:
       - COLLECTOR_OTLP_ENABLED=true
     networks:
       - mcp-network
     restart: unless-stopped
+
+networks:
+  mcp-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local

@@ -1,0 +1,91 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: staging
+
+# Base configuration
+bases:
+  - ../../base
+
+# Common labels for staging environment
+commonLabels:
+  environment: staging
+
+# Resource name prefix
+namePrefix: staging-
+
+# Images to use for staging environment
+images:
+  - name: REGISTRY/mcp-backend
+    newName: ghcr.io/dmorav1/mcp-demo-backend
+    # Tag will be set by CD pipeline
+  - name: REGISTRY/mcp-frontend
+    newName: ghcr.io/dmorav1/mcp-demo-frontend
+    # Tag will be set by CD pipeline
+
+# ConfigMap for staging environment
+configMapGenerator:
+  - name: app-config
+    literals:
+      - ENVIRONMENT=staging
+      - LOG_LEVEL=INFO
+      - DATABASE_HOST=postgres-staging.staging.svc.cluster.local
+      - DATABASE_PORT=5432
+      - DATABASE_NAME=mcp_staging
+      - REDIS_HOST=redis-staging.staging.svc.cluster.local
+      - REDIS_PORT=6379
+      - METRICS_ENABLED=true
+      - TRACING_ENABLED=true
+
+# Note: Secrets should be managed by external secret manager (AWS Secrets Manager, etc.)
+# Example placeholder for secret references
+secretGenerator:
+  - name: app-secrets
+    literals:
+      - DATABASE_PASSWORD=placeholder_use_external_secrets
+
+# Patches for staging-specific configuration
+patches:
+  - target:
+      kind: Deployment
+      name: mcp-backend
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 2
+      - op: add
+        path: /spec/template/spec/containers/0/resources
+        value:
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+          limits:
+            memory: "1Gi"
+            cpu: "1000m"
+      - op: add
+        path: /spec/template/spec/containers/0/env
+        value:
+          - name: ENVIRONMENT
+            valueFrom:
+              configMapKeyRef:
+                name: app-config
+                key: ENVIRONMENT
+          - name: DATABASE_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: app-secrets
+                key: DATABASE_PASSWORD
+
+  - target:
+      kind: HorizontalPodAutoscaler
+      name: mcp-backend
+    patch: |-
+      - op: replace
+        path: /spec/minReplicas
+        value: 2
+      - op: replace
+        path: /spec/maxReplicas
+        value: 5
+      - op: replace
+        path: /spec/metrics/0/resource/target/averageUtilization
+        value: 70

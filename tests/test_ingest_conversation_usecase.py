@@ -110,7 +110,7 @@ class TestIngestConversationUseCase:
             MessageDTO(
                 text="I need help with my account.",
                 author_name="User",
-                author_type="user",
+                author_type="human",
                 timestamp=datetime(2024, 1, 1, 10, 1, 0)
             )
         ]
@@ -182,7 +182,7 @@ class TestIngestConversationUseCase:
         
         # Assert
         assert response.success is True
-        assert response.conversation_id == "123"
+        assert str(response.conversation_id) == "123"
         assert response.chunks_created == 2
         assert response.error_message is None
         assert response.metadata.scenario_title == "Customer Support"
@@ -195,16 +195,11 @@ class TestIngestConversationUseCase:
     @pytest.mark.asyncio
     async def test_empty_messages_validation_error(self, use_case):
         """Test that empty messages list is rejected."""
-        request = IngestConversationRequest(
-            messages=[],
-            scenario_title="Test"
-        )
-        
-        response = await use_case.execute(request)
-        
-        assert response.success is False
-        assert "Cannot ingest conversation with no messages" in response.error_message
-        assert response.chunks_created == 0
+        with pytest.raises(ValueError, match="messages cannot be empty"):
+            IngestConversationRequest(
+                messages=[],
+                scenario_title="Test"
+            )
     
     @pytest.mark.asyncio
     async def test_empty_message_text_validation_error(self, use_case):
@@ -233,13 +228,12 @@ class TestIngestConversationUseCase:
     ):
         """Test handling of embedding generation failure."""
         # Setup mocks
-        conversation_id = ConversationId("conv-123")
+        conversation_id = ConversationId(123)
         saved_conversation = Conversation(
             id=conversation_id,
             metadata=ConversationMetadata(
                 scenario_title="Test",
-                source="api",
-                ingested_at=datetime.utcnow()
+                created_at=datetime.utcnow()
             ),
             chunks=[]
         )
@@ -290,30 +284,30 @@ class TestIngestConversationUseCase:
     ):
         """Test that large messages are properly chunked."""
         # Create a large message
-        large_text = "A" * 2000  # Exceeds chunk size of 500
+        # Create a large message with sentences to avoid "min 3 words" validation issues on small chunks
+        large_text = "This is a complete sentence with enough words to validate. " * 400
         request = IngestConversationRequest(
-            messages=[MessageDTO(text=large_text)]
+            messages=[MessageDTO(text=large_text, author_name="User", author_type="human")],
+            scenario_title="Test"
         )
-        
-        # Setup mocks
-        conversation_id = ConversationId("conv-123")
+        conversation_id = ConversationId(123)
         saved_conversation = Conversation(
             id=conversation_id,
-            metadata=ConversationMetadata(source="api", ingested_at=datetime.utcnow()),
+            metadata=ConversationMetadata(created_at=datetime.utcnow()),
             chunks=[]
         )
         mock_conversation_repo.save.return_value = saved_conversation
         
         # Mock embeddings
         mock_embedding_service.generate_embeddings_batch.return_value = [
-            Embedding([0.1] * 384) for _ in range(10)
+            Embedding([0.1] * 1536) for _ in range(10)
         ]
         
         # Mock chunk save with proper return
         def save_chunks_side_effect(chunks):
             return [
                 ConversationChunk(
-                    id=ChunkId(f"chunk-{i}"),
+                    id=ChunkId(i + 1),
                     conversation_id=chunk.conversation_id,
                     text=chunk.text,
                     metadata=chunk.metadata,
@@ -342,31 +336,34 @@ class TestIngestConversationUseCase:
     ):
         """Test that conversation metadata is preserved."""
         # Setup mocks
-        conversation_id = ConversationId("conv-123")
+        conversation_id = ConversationId(123)
         saved_conversation = Conversation(
             id=conversation_id,
             metadata=ConversationMetadata(
                 scenario_title=valid_request.scenario_title,
                 original_title=valid_request.original_title,
                 url=valid_request.url,
-                source="api",
-                ingested_at=datetime.utcnow()
+                created_at=datetime.utcnow()
             ),
             chunks=[]
         )
         mock_conversation_repo.save.return_value = saved_conversation
         
         mock_embedding_service.generate_embeddings_batch.return_value = [
-            Embedding([0.1] * 384), Embedding([0.2] * 384)
+            Embedding([0.1] * 1536),
+            Embedding([0.1] * 1536)
         ]
         
         mock_chunk_repo.save_chunks.return_value = [
             ConversationChunk(
-                id=ChunkId("chunk-1"),
+                id=ChunkId(1),
                 conversation_id=conversation_id,
-                text=ChunkText("text"),
-                metadata=ChunkMetadata(order_index=0),
-                embedding=Embedding([0.1] * 384)
+                text=ChunkText("This text is valid length"),
+                metadata=ChunkMetadata(
+                    order_index=0, 
+                    author_info=AuthorInfo(name="User", author_type="human")
+                ),
+                embedding=Embedding([0.1] * 1536)
             )
         ]
         

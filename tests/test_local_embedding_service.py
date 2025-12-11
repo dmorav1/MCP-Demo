@@ -5,7 +5,11 @@ Tests the local sentence-transformers embedding service with mocked dependencies
 """
 import pytest
 from unittest.mock import Mock, patch, MagicMock
-from app.adapters.outbound.embeddings.local_embedding_service import LocalEmbeddingService
+import numpy as np
+from app.adapters.outbound.embeddings.local_embedding_service import (
+    LocalEmbeddingService,
+    clear_model_cache
+)
 from app.domain.repositories import EmbeddingError
 from app.domain.value_objects import Embedding, STANDARD_EMBEDDING_DIMENSION
 
@@ -13,6 +17,13 @@ from app.domain.value_objects import Embedding, STANDARD_EMBEDDING_DIMENSION
 @pytest.mark.unit
 class TestLocalEmbeddingService:
     """Unit tests for LocalEmbeddingService."""
+    
+    @pytest.fixture(autouse=True)
+    def clear_cache_before_each_test(self):
+        """Clear the global model cache before each test for isolation."""
+        clear_model_cache()
+        yield
+        clear_model_cache()
     
     @pytest.fixture
     def mock_model(self):
@@ -35,9 +46,11 @@ class TestLocalEmbeddingService:
         """Test successful embedding generation."""
         # Mock the model loading and encoding
         native_vector = [0.1] * 384
-        mock_model.encode.return_value = MagicMock(tolist=lambda: native_vector)
+        # Create a numpy array that mimics sentence-transformers output
+        mock_model.encode.return_value = np.array(native_vector)
         
-        with patch('sentence_transformers.SentenceTransformer', return_value=mock_model):
+        # Patch get_cached_model to return our mock
+        with patch('app.adapters.outbound.embeddings.local_embedding_service.get_cached_model', return_value=mock_model):
             embedding = await service.generate_embedding("test text")
         
         assert isinstance(embedding, Embedding)
@@ -61,9 +74,11 @@ class TestLocalEmbeddingService:
         texts = ["text1", "text2", "text3"]
         native_vectors = [[0.1] * 384, [0.2] * 384, [0.3] * 384]
         
-        mock_model.encode.return_value = MagicMock(tolist=lambda: native_vectors)
+        # Create numpy array that mimics sentence-transformers batch output
+        mock_model.encode.return_value = np.array(native_vectors)
         
-        with patch('sentence_transformers.SentenceTransformer', return_value=mock_model):
+        # Patch get_cached_model to return our mock
+        with patch('app.adapters.outbound.embeddings.local_embedding_service.get_cached_model', return_value=mock_model):
             embeddings = await service.generate_embeddings_batch(texts)
         
         assert len(embeddings) == 3
@@ -76,9 +91,11 @@ class TestLocalEmbeddingService:
         texts = ["text1", "", "text3"]
         valid_vectors = [[0.1] * 384, [0.3] * 384]
         
-        mock_model.encode.return_value = MagicMock(tolist=lambda: valid_vectors)
+        # Create numpy array for valid texts only
+        mock_model.encode.return_value = np.array(valid_vectors)
         
-        with patch('sentence_transformers.SentenceTransformer', return_value=mock_model):
+        # Patch get_cached_model to return our mock
+        with patch('app.adapters.outbound.embeddings.local_embedding_service.get_cached_model', return_value=mock_model):
             embeddings = await service.generate_embeddings_batch(texts)
         
         assert len(embeddings) == 3
@@ -97,8 +114,11 @@ class TestLocalEmbeddingService:
         # Model should not be loaded yet
         assert service._model is None
         
-        with patch('sentence_transformers.SentenceTransformer', return_value=mock_model):
-            mock_model.encode.return_value = MagicMock(tolist=lambda: [0.1] * 384)
+        # Create a numpy array that mimics sentence-transformers output
+        mock_model.encode.return_value = np.array([0.1] * 384)
+        
+        # Patch get_cached_model to return our mock
+        with patch('app.adapters.outbound.embeddings.local_embedding_service.get_cached_model', return_value=mock_model):
             await service.generate_embedding("test")
         
         # Model should now be loaded

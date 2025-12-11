@@ -1,0 +1,76 @@
+# Multi-stage Dockerfile for production-ready backend
+
+# Stage 1: Builder - Install dependencies
+FROM python:3.11-slim AS builder
+
+ARG SLIM_EMBEDDINGS=1
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1
+
+WORKDIR /build
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential gcc g++ curl libpq-dev \
+  && rm -rf /var/lib/apt/lists/*
+
+# Copy only requirements first for better caching
+COPY requirements.txt ./
+
+# Slim down embeddings if requested
+RUN if [ "$SLIM_EMBEDDINGS" = "1" ]; then \
+      grep -v -E '^(torch==|scikit-learn==|scipy==|transformers==|sentence-transformers==)' requirements.txt > requirements.slim && \
+      sed -i '/^pillow==11\./d' requirements.slim || true && \
+      echo 'pillow<11.0.0,>=10.3.0' >> requirements.slim && \
+      echo 'fastembed==0.3.3' >> requirements.slim && \
+      mv requirements.slim requirements.txt ; \
+    fi
+
+# Install Python dependencies to a virtual environment
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+RUN pip install --upgrade pip setuptools wheel && \
+    pip install -r requirements.txt
+
+# Stage 2: Runtime - Minimal image with only runtime dependencies
+FROM python:3.11-slim AS runtime
+
+# Add metadata labels
+LABEL maintainer="MCP Demo Team"
+LABEL version="1.0"
+LABEL description="MCP RAG Backend Service"
+
+# Create non-root user for security
+RUN groupadd -r appuser && useradd -r -g appuser appuser
+
+# Install only runtime dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libpq5 curl ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy virtual environment from builder
+COPY --from=builder /opt/venv /opt/venv
+
+# Set PATH to use venv
+ENV PATH="/opt/venv/bin:$PATH" \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    UVICORN_WORKERS=1
+
+# Copy application code
+COPY --chown=appuser:appuser app ./app
+
+# Switch to non-root user
+USER appuser
+
+EXPOSE 8000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+  CMD curl -f http://localhost:8000/health || exit 1
+
+# Run the application
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

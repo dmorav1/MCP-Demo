@@ -87,33 +87,45 @@ class IngestConversationUseCase:
         try:
             logger.info(f"Starting conversation ingestion with {len(request.messages)} messages")
             
-            # Step 1: Validate input
+            # Step 1: Validate input details
             await self._validate_request(request)
             
-            # Step 2: Create conversation entity
+            # Step 2: Create conversation entity (without chunks initially)
             conversation = self._create_conversation_entity(request)
             
-            # Step 3: Convert DTOs to domain messages and chunk
+            # Step 3: Persist conversation to get ID
+            saved_conversation = await self.conversation_repo.save(conversation)
+            logger.info(f"Saved conversation with ID: {saved_conversation.id.value}")
+            
+            # Step 4: Chunk messages using the assigned conversation ID
             messages = self._convert_messages_to_domain(request.messages)
             chunks = self.chunking_service.chunk_conversation_messages(
                 messages=messages,
-                conversation_id=conversation.id
+                conversation_id=saved_conversation.id
             )
             
             logger.info(f"Created {len(chunks)} chunks from messages")
             
-            # Step 4: Generate embeddings for chunks
+            # Step 5: Generate embeddings for chunks
             chunks_with_embeddings = await self._generate_embeddings(chunks)
-            
-            # Step 5: Persist conversation
-            saved_conversation = await self.conversation_repo.save(conversation)
-            logger.info(f"Saved conversation with ID: {saved_conversation.id.value}")
             
             # Step 6: Persist chunks with embeddings
             saved_chunks = await self.chunk_repo.save_chunks(chunks_with_embeddings)
             logger.info(f"Saved {len(saved_chunks)} chunks")
             
-            # Step 7: Build response
+            # Step 7: Update conversation with saved chunks and validate complete state
+            # Note: We create a new object to ensure clean state, or update the existing one
+            saved_conversation.chunks = saved_chunks
+            
+            try:
+                self.validation_service.validate_conversation(saved_conversation)
+            except ValidationError as e:
+                # If validation fails after saving, we should ideally rollback or mark as invalid.
+                # For now, we return failure but data might be partially persisted.
+                logger.error(f"Post-ingestion validation failed: {str(e)}")
+                raise ValidationError(f"Conversation validation failed: {str(e)}")
+            
+            # Step 8: Build response
             return self._build_response(saved_conversation, saved_chunks)
             
         except ValidationError as e:
@@ -190,11 +202,7 @@ class IngestConversationUseCase:
             chunks=[]
         )
         
-        # Validate using domain service (raises ValidationError if invalid)
-        try:
-            self.validation_service.validate_conversation(conversation)
-        except ValidationError as e:
-            raise ValidationError(f"Conversation validation failed: {str(e)}")
+
         
         return conversation
     

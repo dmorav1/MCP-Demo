@@ -1,0 +1,19 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: mcp-backend-pdb
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: mcp-backend
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: mcp-frontend-pdb
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: mcp-frontend

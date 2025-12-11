@@ -16,10 +16,10 @@ class TestVectorSearchIntegration:
     ):
         """Test basic vector similarity search."""
         # Save conversation with embeddings
-        saved = await conversation_repository.save(sample_conversation_with_embeddings)
+        await conversation_repository.save(sample_conversation_with_embeddings)
         
-        # Create query vector similar to first chunk (i=0, value=0.0)
-        query_vector = [0.05] * 1536
+        # Create query vector identically matching first chunk (i=0, vector=[0.0]*1536)
+        query_vector = [0.0] * 1536
         query_embedding = Embedding(vector=query_vector)
         
         # Search
@@ -32,7 +32,10 @@ class TestVectorSearchIntegration:
         assert len(results) > 0
         
         # First result should be chunk 0 (most similar)
-        assert results[0].chunk_id is not None
+        # Result is (chunk, score) tuple
+        assert results[0][0].id is not None
+        # Should be almost perfect match (score ~1.0)
+        assert results[0][1].value > 0.99
     
     @pytest.mark.asyncio
     async def test_vector_search_with_limit(
@@ -58,7 +61,7 @@ class TestVectorSearchIntegration:
                         author_info=AuthorInfo(name=f"User{i}", author_type="human"),
                         timestamp=datetime.now(),
                     ),
-                    query_embedding=Embedding(vector=vector),
+                    embedding=Embedding(vector=vector),
                 )
                 chunks.append(chunk)
             
@@ -96,66 +99,90 @@ class TestVectorSearchIntegration:
         )
         from datetime import datetime
         
-        # Create chunks with different embeddings
-        # Chunk 0: very similar to query
-        # Chunk 1: somewhat similar
-        # Chunk 2: dissimilar
-        query_vector = [1.0] * 1536
+        # Create chunks with controlled similarity
+        base_vector = [1.0] * 1536
+        query_vector = list(base_vector)
+        
+        # Chunk 0: Identical to query (Score 1.0)
+        vec0 = list(base_vector)
+        
+        # Chunk 1: One dimension different (Score ~0.5)
+        vec1 = list(base_vector)
+        vec1[0] = 0.0
+        
+        # Chunk 2: Two dimensions different (Score ~0.41)
+        vec2 = list(base_vector)
+        vec2[0] = 0.0
+        vec2[1] = 0.0
         
         chunks = [
             ConversationChunk(
                 id=None,
-                conversation_id=ConversationId(1),
-                text=ChunkText(content="Very similar chunk"),
+                conversation_id=ConversationId(2),
+                text=ChunkText(content="Identical chunk"),
                 metadata=ChunkMetadata(
                     order_index=0,
                     author_info=AuthorInfo(name="User", author_type="human"),
                     timestamp=datetime.now(),
                 ),
-                query_embedding=Embedding(vector=[0.95] * 1536),  # Very similar
+                embedding=Embedding(vector=vec0),
             ),
             ConversationChunk(
                 id=None,
-                conversation_id=ConversationId(1),
-                text=ChunkText(content="Somewhat similar chunk"),
+                conversation_id=ConversationId(2),
+                text=ChunkText(content="Visual 1 diff chunk"),
                 metadata=ChunkMetadata(
                     order_index=1,
                     author_info=AuthorInfo(name="User", author_type="human"),
                     timestamp=datetime.now(),
                 ),
-                query_embedding=Embedding(vector=[0.5] * 1536),  # Somewhat similar
+                embedding=Embedding(vector=vec1),
             ),
             ConversationChunk(
                 id=None,
-                conversation_id=ConversationId(1),
-                text=ChunkText(content="Dissimilar chunk"),
+                conversation_id=ConversationId(2),
+                text=ChunkText(content="Visual 2 diff chunk"),
                 metadata=ChunkMetadata(
                     order_index=2,
                     author_info=AuthorInfo(name="User", author_type="human"),
                     timestamp=datetime.now(),
                 ),
-                query_embedding=Embedding(vector=[0.0] * 1536),  # Dissimilar
+                embedding=Embedding(vector=vec2),
             ),
         ]
         
         conv = Conversation(
-            id=None,
+            id=ConversationId(2),  # Explicitly set ID
             metadata=sample_conversation_metadata,
             chunks=chunks,
         )
-        saved = await conversation_repository.save(conv)
+        await conversation_repository.save(conv)
+        
+        # Verify persistence
+        saved_conv = await conversation_repository.get_by_id(ConversationId(2))
+        assert saved_conv is not None
+        assert len(saved_conv.chunks) == 3
+        # Ensure they have embeddings
+        assert all(c.embedding is not None for c in saved_conv.chunks)
         
         # Search
         results = await vector_search_repository.similarity_search(
             query_embedding=Embedding(vector=query_vector),
-            top_k=3
+            top_k=5  # Ask for more than 3 to be sure
         )
         
+        print(f"DEBUG: Found {len(results)} results")
+        for i, (chunk, score) in enumerate(results):
+             print(f"Result {i}: ID={chunk.id}, Score={score.value}, Text={chunk.text.content}")
+        
         # Verify results are in descending similarity order
-        assert len(results) == 3
-        # Distances should be in ascending order (lower distance = more similar)
-        distances = [r.distance for r in results]
-        assert distances == sorted(distances)
+        assert len(results) >= 3
+        # Scores should be in descending order (higher score = more similar)
+        scores = [r[1].value for r in results]
+        assert scores == sorted(scores, reverse=True)
+        assert scores[0] > 0.99  # Identical match
+        assert 0.45 < scores[1] < 0.55  # 1 diff
+        assert 0.35 < scores[2] < 0.45  # 2 diffs
     
     @pytest.mark.asyncio
     async def test_vector_search_with_threshold(
@@ -169,16 +196,16 @@ class TestVectorSearchIntegration:
         # Search with high threshold (only very similar results)
         query_embedding = Embedding(vector=[0.0] * 1536)
         
-        results = await vector_search_repository.similarity_search(
+        # Use similarity_search_with_threshold
+        results = await vector_search_repository.similarity_search_with_threshold(
             query_embedding=query_embedding,
             top_k=10,
-            threshold=0.01  # Very strict threshold
+            threshold=0.9  # High threshold
         )
         
         # Should only return very similar results
-        # All results should have distance <= threshold
         for result in results:
-            assert result.distance <= 0.01
+            assert result[1].value >= 0.9
     
     @pytest.mark.asyncio
     async def test_vector_search_empty_database(
@@ -208,7 +235,6 @@ class TestVectorSearchIntegration:
         from datetime import datetime
         
         # Create chunks with known vectors
-        # Identical vectors should have distance close to 0
         identical_vector = [1.0] * 1536
         
         chunk = ConversationChunk(
@@ -220,7 +246,7 @@ class TestVectorSearchIntegration:
                 author_info=AuthorInfo(name="User", author_type="human"),
                 timestamp=datetime.now(),
             ),
-            query_embedding=Embedding(vector=identical_vector),
+            embedding=Embedding(vector=identical_vector),
         )
         
         conv = Conversation(
@@ -236,9 +262,9 @@ class TestVectorSearchIntegration:
             top_k=1
         )
         
-        # Distance should be very close to 0 (identical vectors)
+        # Relevance score should be very close to 1.0 (identical vectors)
         assert len(results) == 1
-        assert results[0].distance < 0.001  # Near perfect match
+        assert results[0][1].value > 0.999
     
     @pytest.mark.asyncio
     async def test_vector_search_excludes_null_embeddings(
@@ -257,7 +283,6 @@ class TestVectorSearchIntegration:
         )
         
         # Should not return chunks without embeddings
-        # In this case, should return empty since no chunks have embeddings
         assert results == []
 
 
@@ -294,7 +319,7 @@ class TestVectorSearchPerformance:
                         author_info=AuthorInfo(name=f"User{i}", author_type="human"),
                         timestamp=datetime.now(),
                     ),
-                    query_embedding=Embedding(vector=vector),
+                    embedding=Embedding(vector=vector),
                 )
                 chunks.append(chunk)
             
@@ -319,4 +344,4 @@ class TestVectorSearchPerformance:
         assert elapsed < 0.5
         assert len(results) == 10
         
-        print(f"\n⏱️  Vector search (250 vectors) completed in {elapsed:.3f}s")
+        print(f"\\n⏱️  Vector search (250 vectors) completed in {elapsed:.3f}s")

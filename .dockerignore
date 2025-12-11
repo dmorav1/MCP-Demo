@@ -1,0 +1,119 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# CI/CD
+.github
+
+# Documentation
+*.md
+docs/
+CICD_IMPLEMENTATION_SUMMARY.md
+AGENT_TASK_PLAN.md
+CACHING_*.md
+IMPLEMENTATION_COMPLETE.md
+INFRASTRUCTURE_*.md
+OBSERVABILITY_IMPLEMENTATION.md
+PHASE*.md
+PRODUCTION_DEPLOYMENT_SUMMARY.md
+TESTER_*.md
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+*.log
+
+# Tests
+tests/
+test*.py
+pytest.ini
+.pytest_cache/
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+*.cover
+
+# Virtual environments
+venv/
+ENV/
+env/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+test*.db
+
+# Environment
+.env
+.env.local
+.env.*.local
+.slack_ingest_state.json
+
+# Sample data
+sample-data*.json
+json.json
+
+# Example configs
+claude_desktop_config.json
+examples/
+
+# Deployment
+deployment/
+docker-compose.yml
+
+# Monitoring
+monitoring/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Logs
+logs/
+*.log
+
+# Frontend build artifacts (if building backend)
+frontend/node_modules/
+frontend/build/
+frontend/.env*
+
+# Scripts not needed in container
+scripts/
+run_mcp_server_standalone.py
+
+# Terraform
+*.tfstate
+*.tfstate.*
+.terraform/

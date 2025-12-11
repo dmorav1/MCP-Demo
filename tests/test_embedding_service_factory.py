@@ -42,8 +42,10 @@ class TestEmbeddingServiceFactory:
     
     def test_create_openai_service_missing_api_key(self):
         """Test that creating OpenAI service without API key raises error."""
-        with patch('app.adapters.outbound.embeddings.factory.settings') as mock_settings:
+        with patch('app.adapters.outbound.embeddings.factory.get_settings') as mock_get_settings:
+            mock_settings = Mock()
             mock_settings.openai_api_key = None
+            mock_get_settings.return_value = mock_settings
             
             with pytest.raises(EmbeddingError, match="API key required"):
                 EmbeddingServiceFactory.create(
@@ -85,10 +87,12 @@ class TestEmbeddingServiceFactory:
     
     def test_create_with_defaults_from_settings(self):
         """Test that factory uses settings as defaults."""
-        with patch('app.adapters.outbound.embeddings.factory.settings') as mock_settings:
+        with patch('app.adapters.outbound.embeddings.factory.get_settings') as mock_get_settings:
+            mock_settings = Mock()
             mock_settings.embedding_provider = "local"
             mock_settings.embedding_model = "default-model"
             mock_settings.embedding_dimension = 1536
+            mock_get_settings.return_value = mock_settings
             
             service = EmbeddingServiceFactory.create()
             

@@ -1,0 +1,104 @@
+name: Manual Rollback
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to rollback'
+        required: true
+        type: choice
+        options:
+          - dev
+          - staging
+          - production
+      deployment:
+        description: 'Deployment name'
+        required: true
+        default: 'mcp-backend'
+        type: string
+      revision:
+        description: 'Revision to rollback to (0 for previous)'
+        required: false
+        default: '0'
+        type: string
+      reason:
+        description: 'Reason for rollback'
+        required: true
+        type: string
+
+jobs:
+  rollback:
+    name: Rollback ${{ inputs.deployment }}
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Validate inputs
+        run: |
+          echo "Environment: ${{ inputs.environment }}"
+          echo "Deployment: ${{ inputs.deployment }}"
+          echo "Revision: ${{ inputs.revision }}"
+          echo "Reason: ${{ inputs.reason }}"
+
+      - name: Show current deployment status
+        run: |
+          echo "Current deployment status:"
+          # kubectl get deployment ${{ inputs.deployment }} -n ${{ inputs.environment }}
+          # kubectl get pods -n ${{ inputs.environment }} -l app=${{ inputs.deployment }}
+
+      - name: Show deployment history
+        run: |
+          echo "Deployment history:"
+          # kubectl rollout history deployment/${{ inputs.deployment }} -n ${{ inputs.environment }}
+
+      - name: Perform rollback
+        run: |
+          echo "Rolling back deployment..."
+          # ./deployment/scripts/rollback.sh \
+          #   -n ${{ inputs.environment }} \
+          #   -d ${{ inputs.deployment }} \
+          #   -r ${{ inputs.revision }}
+
+      - name: Verify rollback
+        run: |
+          echo "Verifying rollback..."
+          # Add verification commands
+          # - Check pod status
+          # - Run health checks
+          # - Verify metrics
+
+      - name: Send notification
+        if: always()
+        run: |
+          if [ "${{ job.status }}" == "success" ]; then
+            STATUS_EMOJI="✅"
+            STATUS="SUCCESS"
+          else
+            STATUS_EMOJI="❌"
+            STATUS="FAILED"
+          fi
+          
+          echo "$STATUS_EMOJI Rollback $STATUS"
+          echo "Environment: ${{ inputs.environment }}"
+          echo "Deployment: ${{ inputs.deployment }}"
+          echo "Reason: ${{ inputs.reason }}"
+          echo "Triggered by: ${{ github.actor }}"
+          
+          # Send to Slack if webhook configured
+          if [ -n "${{ secrets.SLACK_WEBHOOK_URL }}" ]; then
+            curl -X POST ${{ secrets.SLACK_WEBHOOK_URL }} \
+              -H 'Content-Type: application/json' \
+              -d "{
+                \"text\": \"$STATUS_EMOJI Rollback $STATUS\",
+                \"blocks\": [{
+                  \"type\": \"section\",
+                  \"text\": {
+                    \"type\": \"mrkdwn\",
+                    \"text\": \"*Rollback $STATUS*\n*Environment:* ${{ inputs.environment }}\n*Deployment:* ${{ inputs.deployment }}\n*Reason:* ${{ inputs.reason }}\n*Triggered by:* ${{ github.actor }}\"
+                  }
+                }]
+              }"
+          fi

@@ -169,6 +169,7 @@ def client(mock_ingest_use_case, mock_search_use_case, mock_rag_service):
 # 1. API FUNCTIONAL TESTS - Valid Inputs
 # ============================================================================
 
+@pytest.mark.integration
 class TestConversationEndpoints:
     """Test conversation management endpoints."""
     
@@ -223,6 +224,7 @@ class TestConversationEndpoints:
         assert response.status_code == 201
 
 
+@pytest.mark.integration
 class TestSearchEndpoints:
     """Test search functionality endpoints."""
     
@@ -272,6 +274,7 @@ class TestSearchEndpoints:
         assert result["success"] is True
 
 
+@pytest.mark.integration
 class TestRAGEndpoints:
     """Test RAG (Retrieval-Augmented Generation) endpoints."""
     
@@ -317,6 +320,7 @@ class TestRAGEndpoints:
 # 2. API FUNCTIONAL TESTS - Invalid Inputs
 # ============================================================================
 
+@pytest.mark.integration
 class TestInvalidInputs:
     """Test API endpoints with invalid inputs."""
     
@@ -388,6 +392,7 @@ class TestInvalidInputs:
 # 3. API INTEGRATION TESTS - End-to-End Workflows
 # ============================================================================
 
+@pytest.mark.integration
 class TestEndToEndWorkflows:
     """Test complete workflows through multiple endpoints."""
     
@@ -454,6 +459,7 @@ class TestEndToEndWorkflows:
 # 4. API CONTRACT TESTS - Schema Validation
 # ============================================================================
 
+@pytest.mark.integration
 class TestAPIContracts:
     """Test request/response schemas match expected contracts."""
     
@@ -522,6 +528,7 @@ class TestAPIContracts:
 # 5. PERFORMANCE TESTS - Basic Response Time Checks
 # ============================================================================
 
+@pytest.mark.integration
 class TestPerformance:
     """Basic performance validation tests."""
     
@@ -564,6 +571,7 @@ class TestPerformance:
 # 6. SECURITY TESTS - Input Validation and Error Handling
 # ============================================================================
 
+@pytest.mark.integration
 class TestSecurity:
     """Security-related tests."""
     
@@ -628,6 +636,7 @@ class TestSecurity:
 # 7. COMPATIBILITY TESTS - Backward Compatibility
 # ============================================================================
 
+@pytest.mark.integration
 class TestBackwardCompatibility:
     """Test backward compatibility with legacy API."""
     
