@@ -66,19 +66,19 @@ class TestApplicationLayerIntegration:
     async def test_ingest_then_search_workflow(self, container, mock_repositories):
         """Test complete workflow: ingest a conversation then search it."""
         # Setup container with real services and mock repositories
-        container.register_singleton(
+        container.register_instance(
             IConversationRepository,
             instance=mock_repositories['conversation_repo']
         )
-        container.register_singleton(
+        container.register_instance(
             IChunkRepository,
             instance=mock_repositories['chunk_repo']
         )
-        container.register_singleton(
+        container.register_instance(
             IVectorSearchRepository,
             instance=mock_repositories['vector_search_repo']
         )
-        container.register_singleton(
+        container.register_instance(
             IEmbeddingService,
             instance=mock_repositories['embedding_service']
         )
@@ -107,7 +107,7 @@ class TestApplicationLayerIntegration:
         )
         
         # Mock responses for ingestion
-        conversation_id = ConversationId("conv-123")
+        conversation_id = ConversationId(123)
         saved_conversation = Conversation(
             id=conversation_id,
             metadata=ConversationMetadata(
@@ -126,7 +126,7 @@ class TestApplicationLayerIntegration:
         
         saved_chunks = [
             ConversationChunk(
-                id=ChunkId("chunk-1"),
+                id=ChunkId(1),,
                 conversation_id=conversation_id,
                 text=ChunkText("How do I reset my password?"),
                 metadata=ChunkMetadata(
@@ -136,7 +136,7 @@ class TestApplicationLayerIntegration:
                 embedding=embedding
             ),
             ConversationChunk(
-                id=ChunkId("chunk-2"),
+                id=ChunkId(2),,
                 conversation_id=conversation_id,
                 text=ChunkText("Click the forgot password link on the login page."),
                 metadata=ChunkMetadata(
@@ -152,7 +152,7 @@ class TestApplicationLayerIntegration:
         ingest_response = await ingest_use_case.execute(ingest_request)
         
         assert ingest_response.success is True
-        assert ingest_response.conversation_id == "conv-123"
+        assert ingest_response.conversation_id == "123"
         assert ingest_response.chunks_created == 2
         
         # Step 2: Search for the ingested conversation
@@ -178,7 +178,7 @@ class TestApplicationLayerIntegration:
         
         assert search_response.success is True
         assert search_response.total_results == 2
-        assert search_response.results[0].conversation_id == "conv-123"
+        assert search_response.results[0].conversation_id == "123"
         assert search_response.results[0].score == 0.92
         assert "forgot password" in search_response.results[0].text.lower()
     
@@ -191,10 +191,10 @@ class TestApplicationLayerIntegration:
         vector_search_repo = Mock(spec=IVectorSearchRepository)
         embedding_service = Mock(spec=IEmbeddingService)
         
-        container.register_singleton(IConversationRepository, instance=conversation_repo)
-        container.register_singleton(IChunkRepository, instance=chunk_repo)
-        container.register_singleton(IVectorSearchRepository, instance=vector_search_repo)
-        container.register_singleton(IEmbeddingService, instance=embedding_service)
+        container.register_instance(IConversationRepository, instance=conversation_repo)
+        container.register_instance(IChunkRepository, instance=chunk_repo)
+        container.register_instance(IVectorSearchRepository, instance=vector_search_repo)
+        container.register_instance(IEmbeddingService, instance=embedding_service)
         
         # Register application services
         provider = ApplicationServiceProvider()
@@ -222,15 +222,15 @@ class TestApplicationLayerIntegration:
     async def test_chunking_service_integration(self, container, mock_repositories):
         """Test that chunking service properly integrates with use case."""
         # Setup
-        container.register_singleton(
+        container.register_instance(
             IConversationRepository,
             instance=mock_repositories['conversation_repo']
         )
-        container.register_singleton(
+        container.register_instance(
             IChunkRepository,
             instance=mock_repositories['chunk_repo']
         )
-        container.register_singleton(
+        container.register_instance(
             IEmbeddingService,
             instance=mock_repositories['embedding_service']
         )
@@ -253,7 +253,7 @@ class TestApplicationLayerIntegration:
         )
         
         # Mock responses
-        conversation_id = ConversationId("conv-123")
+        conversation_id = ConversationId(123)
         saved_conversation = Conversation(
             id=conversation_id,
             metadata=ConversationMetadata(source="api", ingested_at=datetime.utcnow()),
@@ -274,7 +274,7 @@ class TestApplicationLayerIntegration:
             saved_chunks.extend(chunks)
             return [
                 ConversationChunk(
-                    id=ChunkId(f"chunk-{i}"),
+                    id=ChunkId(i + 1),
                     conversation_id=chunk.conversation_id,
                     text=chunk.text,
                     metadata=chunk.metadata,
@@ -301,15 +301,15 @@ class TestApplicationLayerIntegration:
     async def test_validation_service_integration(self, container, mock_repositories):
         """Test that validation service properly integrates with use case."""
         # Setup
-        container.register_singleton(
+        container.register_instance(
             IConversationRepository,
             instance=mock_repositories['conversation_repo']
         )
-        container.register_singleton(
+        container.register_instance(
             IChunkRepository,
             instance=mock_repositories['chunk_repo']
         )
-        container.register_singleton(
+        container.register_instance(
             IEmbeddingService,
             instance=mock_repositories['embedding_service']
         )
@@ -326,7 +326,7 @@ class TestApplicationLayerIntegration:
         )
         
         # Mock responses
-        conversation_id = ConversationId("conv-123")
+        conversation_id = ConversationId(123)
         mock_repositories['conversation_repo'].save.return_value = Conversation(
             id=conversation_id,
             metadata=ConversationMetadata(source="api", ingested_at=datetime.utcnow()),
@@ -337,7 +337,7 @@ class TestApplicationLayerIntegration:
         ]
         mock_repositories['chunk_repo'].save_chunks.return_value = [
             ConversationChunk(
-                id=ChunkId("chunk-1"),
+                id=ChunkId(1),
                 conversation_id=conversation_id,
                 text=ChunkText("Valid message"),
                 metadata=ChunkMetadata(order_index=0),
@@ -366,9 +366,9 @@ class TestApplicationLayerIntegration:
         chunk_repo = Mock(spec=IChunkRepository)
         embedding_service = Mock(spec=IEmbeddingService)
         
-        container.register_singleton(IConversationRepository, instance=conversation_repo)
-        container.register_singleton(IChunkRepository, instance=chunk_repo)
-        container.register_singleton(IEmbeddingService, instance=embedding_service)
+        container.register_instance(IConversationRepository, instance=conversation_repo)
+        container.register_instance(IChunkRepository, instance=chunk_repo)
+        container.register_instance(IEmbeddingService, instance=embedding_service)
         
         provider = ApplicationServiceProvider()
         provider.configure_services(container)

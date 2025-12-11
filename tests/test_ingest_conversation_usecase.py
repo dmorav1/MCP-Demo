@@ -233,7 +233,7 @@ class TestIngestConversationUseCase:
     ):
         """Test handling of embedding generation failure."""
         # Setup mocks
-        conversation_id = ConversationId("conv-123")
+        conversation_id = ConversationId(123)
         saved_conversation = Conversation(
             id=conversation_id,
             metadata=ConversationMetadata(
@@ -296,7 +296,7 @@ class TestIngestConversationUseCase:
         )
         
         # Setup mocks
-        conversation_id = ConversationId("conv-123")
+        conversation_id = ConversationId(123)
         saved_conversation = Conversation(
             id=conversation_id,
             metadata=ConversationMetadata(source="api", ingested_at=datetime.utcnow()),
@@ -313,7 +313,7 @@ class TestIngestConversationUseCase:
         def save_chunks_side_effect(chunks):
             return [
                 ConversationChunk(
-                    id=ChunkId(f"chunk-{i}"),
+                    id=ChunkId(i + 1),
                     conversation_id=chunk.conversation_id,
                     text=chunk.text,
                     metadata=chunk.metadata,
@@ -342,7 +342,7 @@ class TestIngestConversationUseCase:
     ):
         """Test that conversation metadata is preserved."""
         # Setup mocks
-        conversation_id = ConversationId("conv-123")
+        conversation_id = ConversationId(123)
         saved_conversation = Conversation(
             id=conversation_id,
             metadata=ConversationMetadata(
@@ -362,7 +362,7 @@ class TestIngestConversationUseCase:
         
         mock_chunk_repo.save_chunks.return_value = [
             ConversationChunk(
-                id=ChunkId("chunk-1"),
+                id=ChunkId(1),
                 conversation_id=conversation_id,
                 text=ChunkText("text"),
                 metadata=ChunkMetadata(order_index=0),

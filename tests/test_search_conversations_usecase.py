@@ -453,7 +453,7 @@ class TestSearchConversationsUseCase:
         
         assert result.chunk_id == chunk.id.value
         assert result.conversation_id == chunk.conversation_id.value
-        assert result.text == chunk.text.value
+        assert result.text == chunk.text.content
         assert result.score == 0.95
         assert result.author_name == chunk.metadata.author_info.name
         assert result.author_type == chunk.metadata.author_info.author_type
