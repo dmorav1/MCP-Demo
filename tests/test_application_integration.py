@@ -126,7 +126,7 @@ class TestApplicationLayerIntegration:
         
         saved_chunks = [
             ConversationChunk(
-                id=ChunkId(1),,
+                id=ChunkId(1),
                 conversation_id=conversation_id,
                 text=ChunkText("How do I reset my password?"),
                 metadata=ChunkMetadata(
@@ -136,7 +136,7 @@ class TestApplicationLayerIntegration:
                 embedding=embedding
             ),
             ConversationChunk(
-                id=ChunkId(2),,
+                id=ChunkId(2),
                 conversation_id=conversation_id,
                 text=ChunkText("Click the forgot password link on the login page."),
                 metadata=ChunkMetadata(
