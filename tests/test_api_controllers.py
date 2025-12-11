@@ -79,7 +79,7 @@ class TestConversationIngest:
         """Test ingesting a basic conversation."""
         data = {
             "messages": [
-                {"text": "Hello, I need help", "author_name": "User", "author_type": "user"},
+                {"text": "Hello, I need help", "author_name": "User", "author_type": "human"},
                 {"text": "How can I help you?", "author_name": "Assistant", "author_type": "assistant"}
             ],
             "scenario_title": "Basic Help"
@@ -95,7 +95,7 @@ class TestConversationIngest:
         """Test ingesting conversation with all metadata fields."""
         data = {
             "messages": [
-                {"text": "Test message", "author_name": "User", "author_type": "user"}
+                {"text": "Test message", "author_name": "User", "author_type": "human"}
             ],
             "scenario_title": "Test Scenario",
             "original_title": "Original Title",
@@ -131,7 +131,7 @@ class TestConversationIngest:
         long_text = "This is a long message. " * 200  # ~5000 characters
         data = {
             "messages": [
-                {"text": long_text, "author_name": "User", "author_type": "user"}
+                {"text": long_text, "author_name": "User", "author_type": "human"}
             ]
         }
         response = client.post("/conversations/ingest", json=data)
@@ -286,7 +286,7 @@ class TestSearchPost:
             "query": "test query",
             "top_k": 5,
             "filters": {
-                "author_type": "user",
+                "author_type": "human",
                 "min_score": 0.5
             }
         }
@@ -339,7 +339,7 @@ class TestSearchGet:
     
     def test_search_get_with_filters(self, client):
         """Test GET search with filters."""
-        response = client.get("/search?q=test&top_k=5&author_type=user&min_score=0.7")
+        response = client.get("/search?q=test&top_k=5&author_type=human&min_score=0.7")
         assert response.status_code == 200
         result = response.json()
         assert "results" in result
@@ -537,7 +537,7 @@ class TestEndToEndWorkflow:
         # 1. Ingest conversation
         ingest_data = {
             "messages": [
-                {"text": "I need help with Django", "author_name": "User", "author_type": "user"},
+                {"text": "I need help with Django", "author_name": "User", "author_type": "human"},
                 {"text": "I can help you with Django", "author_name": "Assistant", "author_type": "assistant"}
             ],
             "scenario_title": "Django Help"

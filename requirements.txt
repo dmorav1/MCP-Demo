@@ -181,7 +181,7 @@ mypy-extensions==1.1.0
     # via typing-inspect
 networkx==3.5
     # via torch
-numpy==1.26.4
+numpy>=1.26.4
     # via
     #   -r requirements.in
     #   langchain-community
