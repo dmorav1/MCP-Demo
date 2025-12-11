@@ -112,8 +112,7 @@ class TestApplicationLayerIntegration:
             id=conversation_id,
             metadata=ConversationMetadata(
                 scenario_title="Password Reset Support",
-                source="api",
-                ingested_at=datetime.utcnow()
+                created_at=datetime.utcnow()
             ),
             chunks=[]
         )
@@ -256,7 +255,7 @@ class TestApplicationLayerIntegration:
         conversation_id = ConversationId(123)
         saved_conversation = Conversation(
             id=conversation_id,
-            metadata=ConversationMetadata(source="api", ingested_at=datetime.utcnow()),
+            metadata=ConversationMetadata(created_at=datetime.utcnow()),
             chunks=[]
         )
         mock_repositories['conversation_repo'].save.return_value = saved_conversation
@@ -329,7 +328,7 @@ class TestApplicationLayerIntegration:
         conversation_id = ConversationId(123)
         mock_repositories['conversation_repo'].save.return_value = Conversation(
             id=conversation_id,
-            metadata=ConversationMetadata(source="api", ingested_at=datetime.utcnow()),
+            metadata=ConversationMetadata(created_at=datetime.utcnow()),
             chunks=[]
         )
         mock_repositories['embedding_service'].generate_embeddings_batch.return_value = [

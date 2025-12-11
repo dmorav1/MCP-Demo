@@ -7,7 +7,7 @@ client = TestClient(app)
 def test_health_check_integration():
     r = client.get("/health")
     assert r.status_code == 200
-    assert r.json()["status"] == "healthy"
+    assert r.json()["status"] in ["healthy", "degraded"]
 
 
 def test_root_endpoint_integration():

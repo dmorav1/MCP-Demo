@@ -110,7 +110,7 @@ class TestIngestConversationUseCase:
             MessageDTO(
                 text="I need help with my account.",
                 author_name="User",
-                author_type="user",
+                author_type="human",
                 timestamp=datetime(2024, 1, 1, 10, 1, 0)
             )
         ]
@@ -195,16 +195,11 @@ class TestIngestConversationUseCase:
     @pytest.mark.asyncio
     async def test_empty_messages_validation_error(self, use_case):
         """Test that empty messages list is rejected."""
-        request = IngestConversationRequest(
-            messages=[],
-            scenario_title="Test"
-        )
-        
-        response = await use_case.execute(request)
-        
-        assert response.success is False
-        assert "Cannot ingest conversation with no messages" in response.error_message
-        assert response.chunks_created == 0
+        with pytest.raises(ValueError, match="messages cannot be empty"):
+            IngestConversationRequest(
+                messages=[],
+                scenario_title="Test"
+            )
     
     @pytest.mark.asyncio
     async def test_empty_message_text_validation_error(self, use_case):
@@ -238,8 +233,7 @@ class TestIngestConversationUseCase:
             id=conversation_id,
             metadata=ConversationMetadata(
                 scenario_title="Test",
-                source="api",
-                ingested_at=datetime.utcnow()
+                created_at=datetime.utcnow()
             ),
             chunks=[]
         )
@@ -299,7 +293,7 @@ class TestIngestConversationUseCase:
         conversation_id = ConversationId(123)
         saved_conversation = Conversation(
             id=conversation_id,
-            metadata=ConversationMetadata(source="api", ingested_at=datetime.utcnow()),
+            metadata=ConversationMetadata(created_at=datetime.utcnow()),
             chunks=[]
         )
         mock_conversation_repo.save.return_value = saved_conversation
@@ -349,8 +343,7 @@ class TestIngestConversationUseCase:
                 scenario_title=valid_request.scenario_title,
                 original_title=valid_request.original_title,
                 url=valid_request.url,
-                source="api",
-                ingested_at=datetime.utcnow()
+                created_at=datetime.utcnow()
             ),
             chunks=[]
         )
