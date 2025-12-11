@@ -76,11 +76,11 @@ class TestSearchConversationsUseCase:
     @pytest.fixture
     def sample_chunks(self):
         """Create sample conversation chunks for testing."""
-        conv_id = ConversationId("conv-123")
+        conv_id = ConversationId(123)
         
         chunks = [
             ConversationChunk(
-                id=ChunkId("chunk-1"),
+                id=ChunkId(1),
                 conversation_id=conv_id,
                 text=ChunkText("To reset your password, click the forgot password link."),
                 metadata=ChunkMetadata(
@@ -91,7 +91,7 @@ class TestSearchConversationsUseCase:
                 embedding=Embedding([0.1] * 1536)
             ),
             ConversationChunk(
-                id=ChunkId("chunk-2"),
+                id=ChunkId(2),
                 conversation_id=conv_id,
                 text=ChunkText("You can also reset your password from the settings page."),
                 metadata=ChunkMetadata(
@@ -102,12 +102,12 @@ class TestSearchConversationsUseCase:
                 embedding=Embedding([0.2] * 1536)
             ),
             ConversationChunk(
-                id=ChunkId("chunk-3"),
-                conversation_id=ConversationId("conv-456"),
+                id=ChunkId(3),
+                conversation_id=ConversationId(456),
                 text=ChunkText("I can't remember my password."),
                 metadata=ChunkMetadata(
                     order_index=0,
-                    author_info=AuthorInfo(name="User", author_type="user"),
+                    author_info=AuthorInfo(name="User", author_type="human"),
                     timestamp=datetime(2024, 1, 2, 14, 30, 0)
                 ),
                 embedding=Embedding([0.3] * 1536)
@@ -150,7 +150,7 @@ class TestSearchConversationsUseCase:
         assert response.execution_time_ms > 0
         
         # Verify results are properly converted to DTOs
-        assert response.results[0].chunk_id == "chunk-1"
+        assert response.results[0].chunk_id == 1
         assert response.results[0].score == 0.95
         assert "reset your password" in response.results[0].text.lower()
         

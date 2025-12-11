@@ -69,6 +69,7 @@ def client():
     return TestClient(app)
 
 
+@pytest.mark.integration
 def test_chat_uses_llm_path(client):
     # Ingest a tiny conversation so context exists
     ing = client.post("/ingest", json={

@@ -7,6 +7,8 @@ from app.main import app as fastapi_app
 from app.database import get_db, Base
 import os
 
+pytestmark = pytest.mark.integration
+
 # Test database URL - matches CI environment (DATABASE_URL)
 # CI provides: postgresql://postgres:postgres@localhost:5432/test_db
 SQLALCHEMY_DATABASE_URL = os.getenv(

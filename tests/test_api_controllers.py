@@ -71,6 +71,7 @@ def client(setup_database):
 # Conversation Endpoints Tests
 # ============================================================================
 
+@pytest.mark.integration
 class TestConversationIngest:
     """Tests for POST /conversations/ingest endpoint."""
     
@@ -139,6 +140,7 @@ class TestConversationIngest:
         assert result["success"] is True
 
 
+@pytest.mark.integration
 class TestConversationList:
     """Tests for GET /conversations endpoint."""
     
@@ -179,6 +181,7 @@ class TestConversationList:
         assert response.status_code == 422
 
 
+@pytest.mark.integration
 class TestConversationGet:
     """Tests for GET /conversations/{id} endpoint."""
     
@@ -215,6 +218,7 @@ class TestConversationGet:
         assert response.status_code == 422
 
 
+@pytest.mark.integration
 class TestConversationDelete:
     """Tests for DELETE /conversations/{id} endpoint."""
     
@@ -251,6 +255,7 @@ class TestConversationDelete:
 # Search Endpoints Tests
 # ============================================================================
 
+@pytest.mark.integration
 class TestSearchPost:
     """Tests for POST /search endpoint."""
     
@@ -314,6 +319,7 @@ class TestSearchPost:
         assert response.status_code == 422
 
 
+@pytest.mark.integration
 class TestSearchGet:
     """Tests for GET /search endpoint."""
     
@@ -348,6 +354,7 @@ class TestSearchGet:
 # RAG Endpoints Tests
 # ============================================================================
 
+@pytest.mark.integration
 class TestRAGAsk:
     """Tests for POST /rag/ask endpoint."""
     
@@ -414,6 +421,7 @@ class TestRAGAsk:
         assert response.status_code == 422
 
 
+@pytest.mark.integration
 class TestRAGStream:
     """Tests for POST /rag/ask-stream endpoint."""
     
@@ -440,6 +448,7 @@ class TestRAGStream:
         assert response.headers["content-type"] == "text/event-stream; charset=utf-8"
 
 
+@pytest.mark.integration
 class TestRAGHealth:
     """Tests for GET /rag/health endpoint."""
     
@@ -484,6 +493,7 @@ class TestRAGHealth:
 # Error Handling Tests
 # ============================================================================
 
+@pytest.mark.integration
 class TestErrorHandling:
     """Tests for error handling."""
     
@@ -518,6 +528,7 @@ class TestErrorHandling:
 # Integration Tests
 # ============================================================================
 
+@pytest.mark.integration
 class TestEndToEndWorkflow:
     """End-to-end workflow tests."""
     
@@ -583,6 +594,7 @@ class TestEndToEndWorkflow:
 # Performance and Edge Case Tests
 # ============================================================================
 
+@pytest.mark.integration
 class TestEdgeCases:
     """Tests for edge cases and boundary conditions."""
     
