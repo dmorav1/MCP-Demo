@@ -151,7 +151,7 @@ class TestApplicationLayerIntegration:
         ingest_response = await ingest_use_case.execute(ingest_request)
         
         assert ingest_response.success is True
-        assert ingest_response.conversation_id == 123
+        assert str(ingest_response.conversation_id) == "123"
         assert ingest_response.chunks_created == 2
         
         # Step 2: Search for the ingested conversation
@@ -177,7 +177,7 @@ class TestApplicationLayerIntegration:
         
         assert search_response.success is True
         assert search_response.total_results == 2
-        assert search_response.results[0].conversation_id == 123
+        assert str(search_response.results[0].conversation_id) == "123"
         assert search_response.results[0].score == 0.92
         assert "forgot password" in search_response.results[0].text.lower()
     
@@ -320,7 +320,7 @@ class TestApplicationLayerIntegration:
         
         # Test with valid request
         valid_request = IngestConversationRequest(
-            messages=[MessageDTO(text="Valid message")],
+            messages=[MessageDTO(text="Valid message text", author_name="User", author_type="human")],
             scenario_title="Test"
         )
         
@@ -338,7 +338,7 @@ class TestApplicationLayerIntegration:
             ConversationChunk(
                 id=ChunkId(1),
                 conversation_id=conversation_id,
-                text=ChunkText("Valid message"),
+                text=ChunkText("Valid message text"),
                 metadata=ChunkMetadata(order_index=0, author_info=AuthorInfo(name="User", author_type="human")),
                 embedding=Embedding([0.1] * 1536)
             )
@@ -349,7 +349,7 @@ class TestApplicationLayerIntegration:
         
         # Test with invalid request (empty messages)
         invalid_request = IngestConversationRequest(
-            messages=[MessageDTO(text="   ")],  # Only whitespace
+            messages=[MessageDTO(text="   ", author_name="User", author_type="human")],  # Only whitespace
             scenario_title="Test"
         )
         

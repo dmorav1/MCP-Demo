@@ -185,6 +185,8 @@ def ensure_schema():
 
 	yield
 
+	yield
+
 	with _schema_lock:
 		try:
 			Base.metadata.drop_all(bind=engine)
@@ -192,4 +194,31 @@ def ensure_schema():
 		except Exception:
 			# Dropping is best-effort; ignore teardown errors to not mask test results.
 			pass
+
+
+@pytest.fixture(autouse=True)
+def reset_di_container():
+    """Reset the DI container and configuration state before each test.
+    
+    This prevents state pollution between tests, ensuring that tests relying on
+    fresh container initialization (like integration tests using TestClient)
+    don't inherit a corrupted or partial container from unit tests.
+    """
+    import app.infrastructure.container as container_module
+    import os
+    
+    # Force new architecture for tests
+    os.environ["USE_NEW_ARCHITECTURE"] = "true"
+    
+    # Reset configuration flag to allow re-initialization
+    container_module._configured = False
+    
+    # Clear registered services
+    container_module._container._services = {}
+    
+    yield
+    
+    # Clean up after test as well
+    container_module._configured = False
+    container_module._container._services = {}
 
