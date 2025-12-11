@@ -389,7 +389,7 @@ class TestBoundaryConditions:
                 text=Mock(value=f"Content {i}"),
                 author_info=Mock(name="User", author_type="human"),
                 metadata=Mock(order_index=i)
-            ), Mock(value=0.9 - i*0.01))
+            ), Mock(value=0.99)) # High score for all to avoid threshold filtering
             for i in range(max_chunks)
         ]
         

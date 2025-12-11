@@ -95,7 +95,7 @@ class TestApplicationLayerIntegration:
                 MessageDTO(
                     text="How do I reset my password?",
                     author_name="User",
-                    author_type="user"
+                    author_type="human"
                 ),
                 MessageDTO(
                     text="Click the forgot password link on the login page.",
@@ -130,7 +130,7 @@ class TestApplicationLayerIntegration:
                 text=ChunkText("How do I reset my password?"),
                 metadata=ChunkMetadata(
                     order_index=0,
-                    author_info=AuthorInfo(name="User", author_type="user")
+                    author_info=AuthorInfo(name="User", author_type="human")
                 ),
                 embedding=embedding
             ),
@@ -163,7 +163,7 @@ class TestApplicationLayerIntegration:
         )
         
         # Mock responses for search
-        query_embedding = Embedding([0.15] * 384)
+        query_embedding = Embedding([0.15] * 1536)
         mock_repositories['embedding_service'].generate_embedding.return_value = query_embedding
         
         search_results = [
@@ -262,9 +262,9 @@ class TestApplicationLayerIntegration:
         
         # Mock embeddings for 3 chunks
         mock_repositories['embedding_service'].generate_embeddings_batch.return_value = [
-            Embedding([0.1] * 384),
-            Embedding([0.2] * 384),
-            Embedding([0.3] * 384)
+            Embedding([0.1] * 1536),
+            Embedding([0.2] * 1536),
+            Embedding([0.3] * 1536)
         ]
         
         # Capture saved chunks

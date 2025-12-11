@@ -300,7 +300,7 @@ class TestIngestConversationUseCase:
         
         # Mock embeddings
         mock_embedding_service.generate_embeddings_batch.return_value = [
-            Embedding([0.1] * 384) for _ in range(10)
+            Embedding([0.1] * 1536) for _ in range(10)
         ]
         
         # Mock chunk save with proper return
@@ -359,8 +359,11 @@ class TestIngestConversationUseCase:
                 id=ChunkId(1),
                 conversation_id=conversation_id,
                 text=ChunkText("text"),
-                metadata=ChunkMetadata(order_index=0),
-                embedding=Embedding([0.1] * 384)
+                metadata=ChunkMetadata(
+                    order_index=0, 
+                    author_info=AuthorInfo(name="User", author_type="human")
+                ),
+                embedding=Embedding([0.1] * 1536)
             )
         ]
         
