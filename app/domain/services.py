@@ -80,7 +80,7 @@ class ConversationChunkingService:
             # Format message for chunk
             formatted_message = f"{author_name or 'Unknown'}: {content}"
             
-            # Check if we should split the chunk
+            # Check if we should split the chunk based on existing content
             should_split = (
                 # Split on speaker change
                 (self.parameters.split_on_speaker_change and 
@@ -92,7 +92,6 @@ class ConversationChunkingService:
             )
             
             if should_split:
-                # Create chunk from accumulated content
                 chunk = self._create_chunk_from_messages(
                     current_chunk_content,
                     current_messages,
@@ -100,12 +99,31 @@ class ConversationChunkingService:
                     len(chunks)
                 )
                 chunks.append(chunk)
-                
-                # Reset for next chunk
                 current_chunk_content = ""
                 current_messages = []
             
-            # Add message to current chunk
+            # Handle case where message ITSELF is larger than max_chunk_size
+            while len(formatted_message) > self.parameters.max_chunk_size:
+                # Limit size
+                limit = self.parameters.max_chunk_size
+                
+                # Find best split point (last space)
+                split_idx = formatted_message.rfind(' ', 0, limit)
+                if split_idx == -1:
+                    split_idx = limit
+                
+                part = formatted_message[:split_idx]
+                formatted_message = formatted_message[split_idx:].lstrip()
+                
+                chunk = self._create_chunk_from_messages(
+                    part,
+                    [message], # Belongs to current message
+                    conversation_id,
+                    len(chunks)
+                )
+                chunks.append(chunk)
+
+            # Add message (or remainder) to current chunk
             current_chunk_content += formatted_message + "\n"
             current_messages.append(message)
             last_author = author_name

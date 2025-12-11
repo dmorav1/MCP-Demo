@@ -10,8 +10,7 @@ import logging
 
 from app.database import SessionLocal
 from app.infrastructure.container import get_container
-from app.application.ingest_conversation import IngestConversationUseCase
-from app.application.search_conversations import SearchConversationsUseCase
+from app.application import IngestConversationUseCase, SearchConversationsUseCase
 from app.application.rag_service import RAGService
 
 
