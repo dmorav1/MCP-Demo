@@ -414,4 +414,5 @@ class TestBoundaryConditions:
                 result = await service.ask("Query")
                 
                 # Should handle large number of chunks
+                assert len(result["sources"]) == max_chunks
                 assert result["metadata"]["chunks_retrieved"] == max_chunks

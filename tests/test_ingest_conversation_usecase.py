@@ -350,7 +350,8 @@ class TestIngestConversationUseCase:
         mock_conversation_repo.save.return_value = saved_conversation
         
         mock_embedding_service.generate_embeddings_batch.return_value = [
-            Embedding([0.1] * 384), Embedding([0.2] * 384)
+            Embedding([0.1] * 1536),
+            Embedding([0.1] * 1536)
         ]
         
         mock_chunk_repo.save_chunks.return_value = [
