@@ -182,7 +182,7 @@ class TestIngestConversationUseCase:
         
         # Assert
         assert response.success is True
-        assert response.conversation_id == "123"
+        assert response.conversation_id == 123
         assert response.chunks_created == 2
         assert response.error_message is None
         assert response.metadata.scenario_title == "Customer Support"
@@ -286,10 +286,9 @@ class TestIngestConversationUseCase:
         # Create a large message
         large_text = "A" * 2000  # Exceeds chunk size of 500
         request = IngestConversationRequest(
-            messages=[MessageDTO(text=large_text)]
+            messages=[MessageDTO(text=large_text, author_name="User", author_type="human")],
+            scenario_title="Test"
         )
-        
-        # Setup mocks
         conversation_id = ConversationId(123)
         saved_conversation = Conversation(
             id=conversation_id,
@@ -358,7 +357,7 @@ class TestIngestConversationUseCase:
             ConversationChunk(
                 id=ChunkId(1),
                 conversation_id=conversation_id,
-                text=ChunkText("text"),
+                text=ChunkText("This text is valid length"),
                 metadata=ChunkMetadata(
                     order_index=0, 
                     author_info=AuthorInfo(name="User", author_type="human")

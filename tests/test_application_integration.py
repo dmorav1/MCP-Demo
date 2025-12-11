@@ -151,7 +151,7 @@ class TestApplicationLayerIntegration:
         ingest_response = await ingest_use_case.execute(ingest_request)
         
         assert ingest_response.success is True
-        assert ingest_response.conversation_id == "123"
+        assert ingest_response.conversation_id == 123
         assert ingest_response.chunks_created == 2
         
         # Step 2: Search for the ingested conversation
@@ -177,7 +177,7 @@ class TestApplicationLayerIntegration:
         
         assert search_response.success is True
         assert search_response.total_results == 2
-        assert search_response.results[0].conversation_id == "123"
+        assert search_response.results[0].conversation_id == 123
         assert search_response.results[0].score == 0.92
         assert "forgot password" in search_response.results[0].text.lower()
     
@@ -241,8 +241,8 @@ class TestApplicationLayerIntegration:
         
         # Create request with multiple messages that should be chunked
         messages = [
-            MessageDTO(text="First message from user", author_name="User"),
-            MessageDTO(text="Second message from user", author_name="User"),
+            MessageDTO(text="First message from user", author_name="User", author_type="human"),
+            MessageDTO(text="Second message from user", author_name="User", author_type="human"),
             MessageDTO(text="Agent response", author_name="Agent", author_type="assistant"),
         ]
         

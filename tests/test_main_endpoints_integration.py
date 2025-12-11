@@ -21,7 +21,7 @@ def test_ingest_and_get_conversation_integration():
         "scenario_title": "Integration Test Scenario",
         "messages": [
             {"author_name": "User1", "author_type": "human", "content": "Hello integration."},
-            {"author_name": "Assistant", "author_type": "ai", "content": "Reply integration."}
+            {"author_name": "Assistant", "author_type": "assistant", "content": "Reply integration."}
         ]
     }
     ing = client.post("/ingest", json=payload)
